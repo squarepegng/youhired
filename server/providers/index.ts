@@ -65,7 +65,37 @@ export const PROVIDERS: ProviderInfo[] = [
   },
 ];
 
+/** Models occasionally return malformed JSON or hit a passing error. Retry those a couple of times. */
+export function withRetries(llm: LLM, attempts = 3): LLM {
+  const retry = async <T>(fn: () => Promise<T>): Promise<T> => {
+    let last: unknown;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        return await fn();
+      } catch (e) {
+        last = e;
+        const kind = (e as ProviderError).kind;
+        if (kind === "auth" || kind === "refusal") throw e;
+        await new Promise((r) => setTimeout(r, kind === "rate_limit" ? 8000 * (i + 1) : 800 * (i + 1)));
+      }
+    }
+    throw last;
+  };
+  return {
+    provider: llm.provider,
+    model: llm.model,
+    supportsVision: llm.supportsVision,
+    chat: (o) => retry(() => llm.chat(o)),
+    json: <T>(o: Parameters<LLM["json"]>[0]) => retry(() => llm.json<T>(o)),
+    listModels: () => llm.listModels(),
+  };
+}
+
 export function makeLLM(s: Pick<Settings, "provider" | "model" | "apiKey" | "baseUrl">): LLM {
+  return withRetries(makeRawLLM(s));
+}
+
+function makeRawLLM(s: Pick<Settings, "provider" | "model" | "apiKey" | "baseUrl">): LLM {
   if (!s.model) throw new ProviderError("Pick a model in Settings first.", "other");
   const needsKey = s.provider !== "compatible";
   if (needsKey && !s.apiKey) throw new ProviderError("Add your API key in Settings first.", "auth");
