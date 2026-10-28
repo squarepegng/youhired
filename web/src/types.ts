@@ -43,7 +43,7 @@ export interface Profile {
   confirmed: boolean;
 }
 
-export type SourceId = "greenhouse" | "lever" | "ashby" | "remotive" | "remoteok" | "himalayas" | "wwr";
+export type SourceId = "greenhouse" | "lever" | "ashby" | "remotive" | "remoteok" | "himalayas" | "wwr" | "jobicy" | "workingnomads" | "arbeitnow" | "hn" | "yc";
 
 export interface SearchPrefs {
   brief?: string;
@@ -54,6 +54,10 @@ export interface SearchPrefs {
   greenhouseBoards: string[];
   leverCompanies: string[];
   ashbyOrgs: string[];
+  recruiteeCompanies?: string[];
+  workableAccounts?: string[];
+  ycChecked?: string[];
+  ycPerSearch?: number;
   maxAgeDays: number;
   maxToScore: number;
 }

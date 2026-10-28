@@ -5,12 +5,13 @@ import { XMLParser } from "fast-xml-parser";
 import { detectAts, findAtsLink, hostNeedsLogin, isJobBoardUrl } from "../guardrails.js";
 import type { Job, SearchPrefs, SourceId } from "../types.js";
 import { htmlToText, politeGet } from "./http.js";
+import { arbeitnow, hnHiring, jobicy, workingNomads } from "./more.js";
 
 export type RawJob = Omit<Job, "status" | "statusDate" | "foundAt" | "flags"> & { hiddenText: string[] };
 
 const HOUR = 3600_000;
 
-function mk(
+export function mkJob(
   source: SourceId,
   externalId: string | number,
   f: { company: string; title: string; url: string; applyUrl?: string; location: string; html?: string; text?: string; postedAt?: string; salaryText?: string; salaryMin?: number | null },
@@ -41,7 +42,7 @@ export async function greenhouse(board: string): Promise<RawJob[]> {
   const body = await politeGet(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(board)}/jobs?content=true`, 6 * HOUR);
   const data = JSON.parse(body) as { jobs: { id: number; title: string; absolute_url: string; location?: { name: string }; updated_at?: string; first_published?: string; company_name?: string; content?: string }[] };
   return (data.jobs ?? []).map((j) =>
-    mk("greenhouse", `${board}-${j.id}`, {
+    mkJob("greenhouse", `${board}-${j.id}`, {
       company: j.company_name || board,
       title: j.title,
       url: j.absolute_url,
@@ -67,7 +68,7 @@ export async function lever(company: string): Promise<RawJob[]> {
     const locs = j.categories?.allLocations?.length ? j.categories.allLocations.join(" / ") : j.categories?.location ?? "";
     const lists = (j.lists ?? []).map((l) => `${l.text}\n${htmlToText(l.content).text}`).join("\n\n");
     const sr = j.salaryRange;
-    return mk("lever", `${company}-${j.id}`, {
+    return mkJob("lever", `${company}-${j.id}`, {
       company,
       title: j.text,
       url: j.hostedUrl,
@@ -95,7 +96,7 @@ export async function ashby(org: string): Promise<RawJob[]> {
     .map((j) => {
       const locs = [j.location, ...(j.secondaryLocations ?? []).map((s) => s.location)].filter(Boolean).join(" / ");
       const salMin = j.compensation?.summaryComponents?.find((c) => c.compensationType === "Salary")?.minValue ?? null;
-      return mk("ashby", `${org}-${j.id}`, {
+      return mkJob("ashby", `${org}-${j.id}`, {
         company: org,
         title: j.title,
         url: j.jobUrl,
@@ -113,7 +114,7 @@ export async function recruitee(slug: string): Promise<RawJob[]> {
   const body = await politeGet(`https://${encodeURIComponent(slug)}.recruitee.com/api/offers/`, 6 * HOUR);
   const data = JSON.parse(body) as { offers?: { id: number; title: string; company_name?: string; location?: string; remote?: boolean; careers_url: string; careers_apply_url?: string; description?: string; requirements?: string; created_at?: string; country?: string }[] };
   return (data.offers ?? []).map((o) =>
-    mk("greenhouse", `recruitee-${slug}-${o.id}`, {
+    mkJob("greenhouse", `recruitee-${slug}-${o.id}`, {
       company: o.company_name || slug,
       title: o.title,
       url: o.careers_url,
@@ -130,7 +131,7 @@ export async function workable(slug: string): Promise<RawJob[]> {
   const body = await politeGet(`https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(slug)}`, 6 * HOUR);
   const data = JSON.parse(body) as { name?: string; jobs?: { title: string; shortcode: string; url: string; application_url?: string; country?: string; city?: string; telecommuting?: boolean; published_on?: string }[] };
   return (data.jobs ?? []).map((j) =>
-    mk("greenhouse", `workable-${slug}-${j.shortcode}`, {
+    mkJob("greenhouse", `workable-${slug}-${j.shortcode}`, {
       company: data.name || slug,
       title: j.title,
       url: j.url,
@@ -148,7 +149,7 @@ export async function remotive(query: string): Promise<RawJob[]> {
   const body = await politeGet(`https://remotive.com/api/remote-jobs?search=${encodeURIComponent(query)}&limit=100`, 8 * HOUR);
   const data = JSON.parse(body) as { jobs: { id: number; url: string; title: string; company_name: string; publication_date?: string; candidate_required_location?: string; salary?: string; description?: string }[] };
   return (data.jobs ?? []).map((j) =>
-    mk("remotive", j.id, { company: j.company_name, title: j.title, url: j.url, location: j.candidate_required_location ?? "", html: j.description ?? "", postedAt: j.publication_date, salaryText: j.salary || undefined }),
+    mkJob("remotive", j.id, { company: j.company_name, title: j.title, url: j.url, location: j.candidate_required_location ?? "", html: j.description ?? "", postedAt: j.publication_date, salaryText: j.salary || undefined }),
   );
 }
 
@@ -159,7 +160,7 @@ export async function remoteok(): Promise<RawJob[]> {
   return data
     .filter((j) => j.id && j.position)
     .map((j) =>
-      mk("remoteok", j.id!, {
+      mkJob("remoteok", j.id!, {
         company: j.company ?? "",
         title: j.position!,
         url: j.url ?? `https://remoteok.com/remote-jobs/${j.id}`,
@@ -181,7 +182,7 @@ export async function himalayas(query: string): Promise<RawJob[]> {
   };
   return (data.jobs ?? []).map((j) => {
     const loc = j.locationRestrictions?.length ? j.locationRestrictions.join(", ") : "Worldwide";
-    return mk("himalayas", j.guid, {
+    return mkJob("himalayas", j.guid, {
       company: j.companyName,
       title: j.title,
       url: j.guid?.startsWith("http") ? j.guid : j.applicationLink,
@@ -217,7 +218,7 @@ export async function wwr(titles: string[]): Promise<RawJob[]> {
   const items = (Array.isArray(raw) ? raw : raw ? [raw] : []) as { title: string; link: string; guid?: string; region?: string; country?: string; description?: string; pubDate?: string }[];
   return items.map((it) => {
     const [company, ...rest] = String(it.title).split(":");
-    return mk("wwr", String(it.guid ?? it.link).split("/").pop() ?? it.link, {
+    return mkJob("wwr", String(it.guid ?? it.link).split("/").pop() ?? it.link, {
       company: rest.length ? company : "",
       title: rest.length ? rest.join(":") : String(it.title),
       url: it.link,
@@ -229,6 +230,11 @@ export async function wwr(titles: string[]): Promise<RawJob[]> {
 }
 
 export const SOURCE_LABELS: Record<SourceId, string> = {
+  yc: "Y Combinator startups",
+  hn: "Hacker News: Who is hiring",
+  jobicy: "Jobicy",
+  workingnomads: "Working Nomads",
+  arbeitnow: "Arbeitnow",
   greenhouse: "Greenhouse boards",
   lever: "Lever boards",
   ashby: "Ashby boards",
@@ -248,6 +254,12 @@ export async function fetchAll(prefs: SearchPrefs, log: (m: string) => void): Pr
   if (prefs.sources.remoteok) tasks.push(["Remote OK", () => remoteok()]);
   if (prefs.sources.himalayas) for (const t of prefs.titles) tasks.push([`Himalayas "${t}"`, () => himalayas(t)]);
   if (prefs.sources.wwr) tasks.push(["We Work Remotely", () => wwr(prefs.titles)]);
+  if (prefs.sources.jobicy) tasks.push(["Jobicy", () => jobicy(prefs.titles)]);
+  if (prefs.sources.workingnomads) tasks.push(["Working Nomads", () => workingNomads()]);
+  if (prefs.sources.arbeitnow) tasks.push(["Arbeitnow", () => arbeitnow()]);
+  if (prefs.sources.hn) tasks.push(["Hacker News: Who is hiring", () => hnHiring(prefs.titles)]);
+  for (const c of prefs.recruiteeCompanies ?? []) tasks.push([`Recruitee/${c}`, () => recruitee(c)]);
+  for (const c of prefs.workableAccounts ?? []) tasks.push([`Workable/${c}`, () => workable(c)]);
 
   const jobs: RawJob[] = [];
   const errors: string[] = [];

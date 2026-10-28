@@ -19,6 +19,7 @@ import { UNTRUSTED_RULE, containsPlantedWord, detectAiScreening, detectInjection
 import type { LLM } from "../providers/types.js";
 import type { Job, Profile } from "../types.js";
 import { groundTruth } from "./answers.js";
+import { connectedHosts } from "../sites.js";
 import { detectBlocker, robotsBlocked } from "./browser.js";
 import { looksSubmitted } from "./filler.js";
 import { type FieldKind, type FormField, mapField } from "./mapper.js";
@@ -257,6 +258,7 @@ export async function runAgent(opts: {
               `CV (trusted):\n<cv>\n${p.cvText.slice(0, 12000)}\n</cv>`,
               p.savedAnswers.length ? `Candidate's own answers (trusted):\n${p.savedAnswers.map((s) => `- ${s.question}: ${s.answer}`).join("\n")}` : "",
               opts.hint ?? "",
+              connectedHosts().length ? `The candidate is already signed in (their own session) on: ${connectedHosts().join(", ")}. On those sites you can use the signed-in apply flow. Anywhere else that asks to sign in: report blocked.` : "",
               history.length ? `Your previous steps:\n${history.slice(-12).join("\n")}` : "",
               `Step ${step}. Current page:\n${describe(snap)}`,
               untrusted("page_text", snap.text, 3500),
@@ -325,7 +327,8 @@ export async function runAgent(opts: {
             break;
           }
           if (/sign ?in|log ?in|create (an )?account|register|continue with (google|linkedin|apple)/i.test(el!.label) && !/apply/i.test(el!.label)) {
-            return done("blocked", `The site wants you to "${el!.label}". JobPilot never signs in or creates accounts.`);
+            const host = new URL(page.url()).hostname.replace(/^www\./, "");
+            return done("blocked", `${host} wants you signed in. JobPilot never signs in or creates accounts for you: connect ${host} under Settings → Connected sites (you sign in once yourself), then try again.`);
           }
           if (decision.action === "check") await target.check({ force: true }).catch(() => target.click({ force: true }));
           else await target.click({ timeout: 6000 }).catch(async () => target.click({ force: true, timeout: 3000 }));

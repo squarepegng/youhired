@@ -11,6 +11,7 @@ import { PROVIDERS, makeLLM, testConnection } from "./providers/index.js";
 import { progress, runSearch } from "./search.js";
 import { SOURCE_LABELS } from "./sources/index.js";
 import { DATA_DIR, load, maskKey, setStatus, update } from "./store.js";
+import { SITES, disconnect, markConnected, openSignIn } from "./sites.js";
 import { toCsv } from "./tracker.js";
 import type { Job, Profile, SearchPrefs, Settings } from "./types.js";
 
@@ -191,6 +192,21 @@ app.post("/api/jobs/:id/answers", (req, res) => {
 app.get("/api/jobs/:id/log", (req, res) => {
   const id = String(req.params.id);
   res.json({ log: logs.get(id) ?? [], applying: currentApply() === id || queued().includes(id) });
+});
+
+// ── Connected sites (you sign in yourself, once) ──
+app.get("/api/sites", (_req, res) => res.json({ sites: SITES, connected: load().settings.connectedSites ?? [] }));
+app.post("/api/sites/:id/open", wrap(async (req, res) => {
+  await openSignIn(String(req.params.id), (req.body as { url?: string }).url);
+  res.json({ ok: true });
+}));
+app.post("/api/sites/:id/done", (req, res) => {
+  markConnected(String(req.params.id), (req.body as { url?: string }).url);
+  res.json({ connected: load().settings.connectedSites });
+});
+app.post("/api/sites/disconnect", (req, res) => {
+  disconnect(String((req.body as { host?: string }).host ?? ""));
+  res.json({ connected: load().settings.connectedSites });
 });
 
 // ── Assistant ──

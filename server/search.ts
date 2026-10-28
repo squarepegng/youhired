@@ -3,6 +3,7 @@ import { UNTRUSTED_RULE, detectAiScreening, detectInjection, isNeverApply, untru
 import type { LLM } from "./providers/types.js";
 import { isJobBoardUrl } from "./guardrails.js";
 import { type RawJob, fetchAll, findEmployerForm } from "./sources/index.js";
+import { type BoardHit, discoverYcStartups } from "./sources/more.js";
 import { load, update } from "./store.js";
 import type { Eligibility, Job, Profile, SearchPrefs } from "./types.js";
 
@@ -122,6 +123,28 @@ export function triage(raw: RawJob, prefs: SearchPrefs, p: Profile, now = Date.n
   return { keep: true, status: "found", eligibility, flags };
 }
 
+/** Check new YC startups for job boards; boards with matching roles are added to your sources. */
+export async function discoverStartups(limit: number, say: (m: string) => void): Promise<BoardHit[]> {
+  const prefs = load().search;
+  const { hits, checked } = await discoverYcStartups({ titles: prefs.titles, limit, log: say, skip: new Set(prefs.ycChecked ?? []) }).catch((e) => {
+    say(`YC discovery failed: ${(e as Error).message}`);
+    return { hits: [] as BoardHit[], checked: [] as string[] };
+  });
+  const useful = hits.filter((h) => h.matching.length);
+  update((s) => {
+    const all = JSON.parse(JSON.stringify(s.search)) as SearchPrefs;
+    for (const h of useful) {
+      const list = h.ats === "ashby" ? all.ashbyOrgs : h.ats === "greenhouse" ? all.greenhouseBoards : h.ats === "lever" ? all.leverCompanies : h.ats === "recruitee" ? (all.recruiteeCompanies ??= []) : (all.workableAccounts ??= []);
+      if (!list.includes(h.slug)) list.push(h.slug);
+    }
+    // Remember who we checked so the next search looks at new startups.
+    all.ycChecked = [...new Set([...(all.ycChecked ?? []), ...checked])];
+    s.search = all;
+  });
+  say(`YC startups: checked ${checked.length}, found ${hits.length} job boards, ${useful.length} with roles like yours (added to your sources).`);
+  return hits;
+}
+
 export async function runSearch(llm: LLM | null): Promise<void> {
   if (progress.running) return;
   Object.assign(progress, { running: true, log: [], found: 0, skipped: 0, scored: 0, errors: [] });
@@ -130,6 +153,7 @@ export async function runSearch(llm: LLM | null): Promise<void> {
     if (progress.log.length > 300) progress.log.shift();
   };
   try {
+    if (load().search.sources.yc) await discoverStartups(load().search.ycPerSearch ?? 80, say);
     const { search: prefs, profile: p, jobs: existing } = load();
     say("Fetching postings from public sources…");
     const { jobs: raws, errors } = await fetchAll(prefs, say);

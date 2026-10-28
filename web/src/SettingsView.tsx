@@ -1,5 +1,5 @@
-import { CircleCheck, CircleAlert, ExternalLink, KeyRound, LoaderCircle, RefreshCw, Settings as Cog, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { Link2, Unlink, CircleCheck, CircleAlert, ExternalLink, KeyRound, LoaderCircle, RefreshCw, Settings as Cog, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
 import { api } from "./api";
 import type { Ctx } from "./App";
 import type { Settings } from "./types";
@@ -188,12 +188,14 @@ export function SettingsView({ ctx }: { ctx: Ctx }) {
             </div>
           </div>
 
+          <ConnectedSites />
+
           <div className="group-title">Always on</div>
           <div className="box">
             {[
               "Never states a false location, work authorisation or experience.",
               "Questions it can't answer from your profile go to your Inbox. It never guesses.",
-              "Never creates accounts, types passwords or solves CAPTCHAs. Those jobs go to Do it yourself.",
+              "Never creates accounts, types passwords or solves CAPTCHAs. You sign in to sites yourself (Connected sites); JobPilot only reuses that session.",
               "Job pages are untrusted. Hidden instructions to AI are ignored; pages that reject AI-assisted applications are left to you.",
               "Companies on your never-apply list are always skipped.",
             ].map((r) => (
@@ -205,6 +207,108 @@ export function SettingsView({ ctx }: { ctx: Ctx }) {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+interface Site {
+  id: string;
+  name: string;
+  host: string;
+  note: string;
+}
+
+function ConnectedSites() {
+  const toast = useToast();
+  const [sites, setSites] = useState<Site[]>([]);
+  const [connected, setConnected] = useState<{ host: string; name: string; connectedAt: string }[]>([]);
+  const [opened, setOpened] = useState<string | null>(null);
+  const [custom, setCustom] = useState("");
+  const load = () => api<{ sites: Site[]; connected: typeof connected }>("/api/sites").then((r) => (setSites(r.sites), setConnected(r.connected)));
+  useEffect(() => void load(), []);
+  const open = async (id: string, url?: string) => {
+    try {
+      await api(`/api/sites/${id}/open`, { url });
+      setOpened(id);
+      toast("A browser window opened. Sign in there yourself, then come back and press Done.");
+    } catch (e) {
+      toast((e as Error).message, "error");
+    }
+  };
+  const done = async (id: string, url?: string) => {
+    await api(`/api/sites/${id}/done`, { url });
+    setOpened(null);
+    setCustom("");
+    await load();
+    toast("Connected. JobPilot can now apply there using your session.");
+  };
+  const isOn = (host: string) => connected.find((c) => c.host === host);
+  return (
+    <>
+      <div className="group-title">Connected sites</div>
+      <p className="group-desc">
+        Some job platforms need an account to apply. Sign in once yourself in JobPilot's browser window; JobPilot keeps that session on this Mac and applies there for you. It never sees your password and never creates accounts. Automated applying may go against a site's terms, so connect only sites you're comfortable with.
+      </p>
+      <div className="box">
+        {sites.map((s) => {
+          const on = isOn(s.host);
+          return (
+            <div className="srow" key={s.id}>
+              <div className="l">
+                <b>{s.name}</b>
+                <span>{on ? `Connected ${new Date(on.connectedAt).toLocaleDateString()}` : s.note}</span>
+              </div>
+              <div className="r">
+                {opened === s.id ? (
+                  <button className="btn primary" onClick={() => done(s.id)}>
+                    <CircleCheck size={13} /> Done, I'm signed in
+                  </button>
+                ) : on ? (
+                  <>
+                    <button className="btn ghost" onClick={() => open(s.id)}>
+                      Sign in again
+                    </button>
+                    <button className="iconbtn" aria-label={`Disconnect ${s.name}`} onClick={() => api("/api/sites/disconnect", { host: s.host }).then(load)}>
+                      <Unlink size={14} />
+                    </button>
+                  </>
+                ) : (
+                  <button className="btn" onClick={() => open(s.id)}>
+                    <Link2 size={13} /> Sign in
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {connected
+          .filter((c) => !sites.some((s) => s.host === c.host))
+          .map((c) => (
+            <div className="srow" key={c.host}>
+              <div className="l">
+                <b>{c.name}</b>
+                <span>Connected {new Date(c.connectedAt).toLocaleDateString()}</span>
+              </div>
+              <div className="r">
+                <button className="iconbtn" aria-label={`Disconnect ${c.name}`} onClick={() => api("/api/sites/disconnect", { host: c.host }).then(load)}>
+                  <Unlink size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        <div className="srow">
+          <input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Another site's sign-in link, e.g. https://jobs.example.com/login" />
+          {opened === "custom" ? (
+            <button className="btn primary" onClick={() => done("custom", custom)}>
+              Done
+            </button>
+          ) : (
+            <button className="btn" disabled={!/^https:\/\//.test(custom)} onClick={() => open("custom", custom)}>
+              <Link2 size={13} /> Sign in
+            </button>
+          )}
         </div>
       </div>
     </>

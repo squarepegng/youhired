@@ -286,7 +286,7 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
     return { field: f, value: f.kind === "checkbox" && f.options.length ? [f.options[0]] : "true", source: "rule", note: "Required consent box ticked: please review" };
   }
   if (/how (?:did )?you (?:hear|heard|find|found|learn|learned|came across)|where did you (?:hear|find|see)|^source\b|referral source/.test(l)) {
-    const via = { greenhouse: "Company website", lever: "Company website", ashby: "Company website", remotive: "Remotive", remoteok: "Remote OK", himalayas: "Himalayas", wwr: "We Work Remotely" }[job.source];
+    const via = ({ greenhouse: "Company website", lever: "Company website", ashby: "Company website", remotive: "Remotive", remoteok: "Remote OK", himalayas: "Himalayas", wwr: "We Work Remotely", jobicy: "Jobicy", workingnomads: "Working Nomads", arbeitnow: "Arbeitnow", hn: "Hacker News", yc: "Y Combinator" } as Record<string, string>)[job.source] ?? "Job board";
     if (f.options.length) return ret(pickOption(f.options, [via, "Job board", "Online job board", "Other", "Website"]), "rule");
     return ret(via, "rule");
   }

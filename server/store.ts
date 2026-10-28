@@ -54,18 +54,22 @@ export function defaultSearch(): SearchPrefs {
     titles: ["product designer"],
     excludeKeywords: ["intern"],
     jobTypes: ["full_time", "contract"],
-    sources: { greenhouse: true, lever: true, ashby: true, remotive: false, remoteok: true, himalayas: true, wwr: true },
+    sources: { greenhouse: true, lever: true, ashby: true, remotive: false, remoteok: true, himalayas: true, wwr: true, jobicy: true, workingnomads: true, arbeitnow: true, hn: true, yc: true },
     // Public job boards of companies known to hire remotely. Add your own in Search settings.
     greenhouseBoards: ["gitlab", "automatticcareers", "canonical", "elastic", "grafanalabs", "wikimedia", "vercel"],
     leverCompanies: ["toptal"],
     ashbyOrgs: ["zapier", "posthog", "linear", "supabase", "sentry"],
+    recruiteeCompanies: [],
+    workableAccounts: [],
+    ycChecked: [],
+    ycPerSearch: 80,
     maxAgeDays: 30,
     maxToScore: 40,
   };
 }
 
 export function defaultSettings(): Settings {
-  return { provider: "anthropic", model: "claude-opus-5-5", apiKey: "", baseUrl: "", autoSubmit: false, browserChannel: "chrome", background: false };
+  return { provider: "anthropic", model: "claude-opus-5-5", apiKey: "", baseUrl: "", autoSubmit: false, browserChannel: "chrome", background: false, connectedSites: [] };
 }
 
 let cache: Store | null = null;
@@ -81,7 +85,7 @@ export function load(): Store {
   cache = {
     settings: { ...defaultSettings(), ...raw.settings },
     profile: { ...defaultProfile(), ...raw.profile },
-    search: { ...defaultSearch(), ...raw.search },
+    search: { ...defaultSearch(), ...raw.search, sources: { ...defaultSearch().sources, ...raw.search?.sources } },
     jobs: raw.jobs ?? {},
     chat: raw.chat ?? [],
   };

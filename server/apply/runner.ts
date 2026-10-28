@@ -7,6 +7,7 @@ import type { Page } from "playwright";
 import { detectAiScreening, detectInjection, isJobBoardUrl, isNeverApply } from "../guardrails.js";
 import type { LLM } from "../providers/types.js";
 import { checkLocation } from "../eligibility.js";
+import { connectedHosts } from "../sites.js";
 import { findEmployerForm } from "../sources/index.js";
 import { DATA_DIR, cvPath, load, update } from "../store.js";
 import type { Job, PendingQuestion } from "../types.js";
@@ -68,7 +69,16 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   if (!p.confirmed && !opts.profileOverride) throw new Error("Confirm your profile facts first (Profile → Confirm).");
   const cv = opts.cvOverride ?? cvPath();
   if (!fs.existsSync(cv)) throw new Error("Upload your CV in Profile first.");
-  if (job.needsLogin) return save(job, "do_it_yourself", "This site needs an account. JobPilot never creates accounts or signs in.");
+  const host = (() => {
+    try {
+      return new URL(job.applyUrl).hostname.replace(/^www\./, "");
+    } catch {
+      return "";
+    }
+  })();
+  const signedIn = connectedHosts().some((h) => host === h || host.endsWith(`.${h}`));
+  if (job.needsLogin && !signedIn)
+    return save(job, "do_it_yourself", `${host} needs an account. Connect it under Settings → Connected sites (you sign in once yourself) and JobPilot can apply there. It never creates accounts or types passwords.`);
   if (job.ats === "job-board" || isJobBoardUrl(job.applyUrl)) {
     log(id, `Looking for ${job.company}'s own application form…`);
     const hit = await findEmployerForm(job.company, job.title, job.url).catch(() => null);
@@ -85,7 +95,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
       update((s) => void (s.jobs[id] = job));
     }
   }
-  const boardOnly = job.ats === "job-board" || isJobBoardUrl(job.applyUrl);
+  const boardOnly = job.ats === "job-board" || isJobBoardUrl(job.applyUrl) || (job.needsLogin && signedIn);
   if (boardOnly && !llm) {
     const host = new URL(job.applyUrl).hostname.replace(/^www\./, "");
     return save(job, "do_it_yourself", `This job is listed on ${host}. Connect your AI in Settings so JobPilot can follow "Apply" to the employer's form, or open the link yourself.`);

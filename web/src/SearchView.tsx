@@ -15,6 +15,11 @@ interface Progress {
 }
 
 const SOURCE_INFO: Record<SourceId, string> = {
+  yc: "Finds Y Combinator startups that are hiring and remote-friendly (newest batches first), checks their job boards, and adds the ones with roles like yours.",
+  hn: "The monthly Hacker News \"Who is hiring?\" thread: hundreds of startups, many linking straight to their application form.",
+  jobicy: "Remote-only job board API.",
+  workingnomads: "Remote-only job board feed.",
+  arbeitnow: "Job board API, strong on Europe and remote.",
   greenhouse: "Company boards on Greenhouse. No login needed to apply.",
   lever: "Company boards on Lever.",
   ashby: "Company boards on Ashby.",
@@ -208,6 +213,24 @@ export function SearchView({ ctx }: { ctx: Ctx }) {
                 {id === "greenhouse" && boardField("greenhouseBoards", "greenhouse", "gitlab")}
                 {id === "lever" && boardField("leverCompanies", "lever", "toptal")}
                 {id === "ashby" && boardField("ashbyOrgs", "ashby", "zapier")}
+                {id === "yc" && p.sources.yc && (
+                  <div className="srow" style={{ borderTop: "1px solid var(--line)" }}>
+                    <div className="l">
+                      <span>
+                        New startups to check per search. {p.ycChecked?.length ? `${p.ycChecked.length} checked so far; each search looks at ones it hasn't seen.` : ""}
+                      </span>
+                    </div>
+                    <div className="r">
+                      <select value={p.ycPerSearch ?? 80} onChange={(e) => save({ ycPerSearch: +e.target.value })} style={{ width: 160 }}>
+                        {[0, 40, 80, 150, 300].map((n) => (
+                          <option key={n} value={n}>
+                            {n === 0 ? "Off" : `${n} startups`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

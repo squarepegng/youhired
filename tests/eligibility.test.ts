@@ -125,3 +125,18 @@ describe("merging the AI verdict", () => {
     expect(evidenceIsReal("BASED IN the  United States", { title: "", location: "", description: "candidates based in the United States only" })).toBe(true);
   });
 });
+
+describe("new sources helpers", () => {
+  it("matchesTitle needs every word", async () => {
+    const { matchesTitle } = await import("../server/sources/more.js");
+    expect(matchesTitle("Senior Product Designer", ["product designer"])).toBe(true);
+    expect(matchesTitle("Staff Software Engineer", ["design engineer"])).toBe(false);
+    expect(matchesTitle("Design Engineer (Founding)", ["design engineer"])).toBe(true);
+  });
+  it("on-site or hybrid roles aren't remote", () => {
+    expect(v("ONSITE")).toBe("ineligible");
+    expect(v("Hybrid - Onsite (London, UK)")).toBe("ineligible");
+    expect(v("ONSITE, HYBRID, REMOTE (role-dependent)")).not.toBe("ineligible");
+    expect(v("Onsite (Lagos)")).toBe("eligible");
+  });
+});

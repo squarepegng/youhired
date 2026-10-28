@@ -10,6 +10,7 @@ export interface Settings {
   autoSubmit: boolean; // default false: pause for review before submitting
   browserChannel: "chrome" | "msedge" | "chromium";
   background: boolean; // run the browser hidden (headless); review via screenshots in the app
+  connectedSites: { id: string; name: string; host: string; connectedAt: string }[]; // sites you signed in to yourself
 }
 
 export type WorkAuthStatus = "citizen" | "authorized" | "needs_sponsorship" | "not_authorized";
@@ -73,11 +74,15 @@ export interface SearchPrefs {
   greenhouseBoards: string[];
   leverCompanies: string[];
   ashbyOrgs: string[];
+  recruiteeCompanies: string[];
+  workableAccounts: string[];
+  ycChecked: string[]; // YC company slugs already checked for job boards
+  ycPerSearch: number; // how many new YC startups to check per search
   maxAgeDays: number;
   maxToScore: number; // cap on AI calls per search
 }
 
-export type SourceId = "greenhouse" | "lever" | "ashby" | "remotive" | "remoteok" | "himalayas" | "wwr";
+export type SourceId = "greenhouse" | "lever" | "ashby" | "remotive" | "remoteok" | "himalayas" | "wwr" | "jobicy" | "workingnomads" | "arbeitnow" | "hn" | "yc";
 
 export type JobStatus =
   | "found"

@@ -13,14 +13,14 @@ import crypto from "node:crypto";
 import { applyBlocker, enqueue } from "./apply/queue.js";
 import { UNTRUSTED_RULE, isJobBoardUrl, untrusted } from "./guardrails.js";
 import type { LLM } from "./providers/types.js";
-import { profileBrief, progress, runSearch } from "./search.js";
+import { discoverStartups, profileBrief, progress, runSearch } from "./search.js";
 import { ashby, greenhouse, lever, recruitee, workable, type RawJob } from "./sources/index.js";
 import { load, update } from "./store.js";
 import type { ChatAction, ChatMessage, Job } from "./types.js";
 
 const MAX_ROUNDS = 10;
 
-const TOOLS = ["list_jobs", "get_job", "search_jobs", "check_companies", "add_companies", "set_brief", "update_search", "apply_jobs", "skip_jobs", "open_job"] as const;
+const TOOLS = ["list_jobs", "get_job", "search_jobs", "discover_startups", "check_companies", "add_companies", "set_brief", "update_search", "apply_jobs", "skip_jobs", "open_job"] as const;
 type Tool = (typeof TOOLS)[number];
 
 interface Call {
@@ -82,6 +82,7 @@ TOOLS (call several per round; results come back next round):
 - list_jobs(status?, query?, min_fit?, limit?): jobs in the tracker with status, fit, eligibility, whether JobPilot can apply automatically.
 - get_job(job_ids): full details for up to 3 jobs: where they hire (exact wording), why it fits, pay, the posting text.
 - search_jobs(titles?, brief?): run a fresh search across all job sources NOW and wait for results (1-3 minutes). Optionally update titles/brief first. Returns the new jobs.
+- discover_startups(limit): check up to \`limit\` (default 150) Y Combinator startups that are hiring and remote-friendly and haven't been checked yet; boards with roles like the candidate's are added to sources. Follow with search_jobs to pull their jobs.
 - check_companies(companies): look up companies' public Greenhouse/Lever/Ashby/Recruitee/Workable boards; returns which exist and their open roles matching the candidate's titles. Use your own knowledge of companies that hire remotely internationally (e.g. GitLab, Automattic, Zapier, Canonical, Toggl, Doist, Remote, Deel, Hotjar, Buffer, Wikimedia, Kraken, Sourcegraph, PostHog, Supabase, Vercel, Grafana Labs, Elastic, Sentry, Linear, Mozilla, DuckDuckGo, Andela, Paystack, Flutterwave, Moniepoint, Chipper Cash, Kuda, Yoco...) to suggest board names.
 - add_companies(companies): add verified boards to future searches.
 - set_brief(brief): save what the candidate wants (seniority, field, industries, likes/dislikes). Fit scoring uses it.
@@ -92,7 +93,8 @@ TOOLS (call several per round; results come back next round):
 HOW TO BEHAVE:
 - Be proactive. Don't ask permission to search, read or check things; just do it, then report. When the user states what they want, set the brief, adjust titles, and search in the same turn.
 - "Jobs available in <country>" means remote roles the candidate can be hired for from there. Answer with real jobs from tools, not guesses.
-- If results are thin (fewer than ~5 good matches), widen: add title variants, check 8-15 relevant companies' boards, add those with matching roles, and search again. Say what you did.
+- If results are thin (fewer than ~5 good matches), widen: add title variants, discover_startups, check 8-15 relevant companies' boards (include African and Europe/EMEA-friendly companies), add those with matching roles, and search again. Say what you did.
+- Sources include company boards (Greenhouse, Lever, Ashby, Recruitee, Workable), YC startups, Hacker News "Who is hiring", Himalayas, Remote OK, We Work Remotely, Jobicy, Working Nomads, Arbeitnow.
 - When asked to apply, pick eligible jobs with good fit (≥60) and auto_apply=yes, call apply_jobs, and list what was queued. Offer to apply to good matches; don't send the user off to apply by hand. Only jobs already marked do_it_yourself (or auto_apply=no) need the user, and say why.
 - Explain decisions with evidence: quote the posting's location words, give fit scores and the reason.
 - Final replies: short, concrete, skimmable. Lead with the answer. Use job titles and companies, never ids. End with the obvious next step only if useful, not a question every time.
@@ -291,6 +293,13 @@ async function runTool(c: Call, llm: LLM, actions: ChatAction[]): Promise<string
     }
     case "check_companies":
       return checkCompanies(c);
+    case "discover_startups": {
+      const n = Math.min(Math.max(c.limit || 150, 20), 400);
+      const hits = await discoverStartups(n, (m) => note(m.slice(0, 120)));
+      const useful = hits.filter((h) => h.matching.length);
+      actions.push({ type: "add_companies", summary: `Checked YC startups: ${useful.length} with roles like yours added to your sources`, status: "done", data: {} });
+      return untrusted("yc_boards", useful.map((h) => `${h.company} (${h.ats}:${h.slug}): ${h.matching.slice(0, 4).join("; ")}`).join("\n") || "No new startups with matching roles this time.", 6000);
+    }
     case "add_companies": {
       const a = addCompanies(c);
       actions.push(a);

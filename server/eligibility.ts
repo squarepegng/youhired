@@ -167,6 +167,9 @@ export function checkLocation(
   const okRegions = regionsOk(regions);
   const okCountries = mentioned.filter((c) => allowed.has(c));
 
+  // On-site or hybrid roles with no remote option need you in the office.
+  if (/\b(?:on-?site|in[- ]office|hybrid|in[- ]person)\b/.test(lower) && !/\bremote\b/.test(lower) && !okCountries.length)
+    return { verdict: "ineligible", reason: "On-site or hybrid role, not remote.", evidence: loc };
   if (okCountries.length) return { verdict: "eligible", reason: `Open to ${okCountries.join(", ")}.`, evidence: loc };
   if (okRegions.length) return { verdict: "eligible", reason: `Open to ${okRegions.join(", ").toUpperCase()}, which includes ${home}.`, evidence: loc };
 
