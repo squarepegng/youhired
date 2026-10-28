@@ -2,7 +2,7 @@
 // Only official public APIs/feeds are used. robots.txt and rate limits are honoured in http.ts.
 
 import { XMLParser } from "fast-xml-parser";
-import { detectAts, hostNeedsLogin } from "../guardrails.js";
+import { detectAts, findAtsLink, hostNeedsLogin, isJobBoardUrl } from "../guardrails.js";
 import type { Job, SearchPrefs, SourceId } from "../types.js";
 import { htmlToText, politeGet } from "./http.js";
 
@@ -16,7 +16,9 @@ function mk(
   f: { company: string; title: string; url: string; applyUrl?: string; location: string; html?: string; text?: string; postedAt?: string; salaryText?: string; salaryMin?: number | null },
 ): RawJob {
   const { text, hidden } = f.html !== undefined ? htmlToText(f.html) : { text: f.text ?? "", hidden: [] };
-  const applyUrl = f.applyUrl || f.url;
+  let applyUrl = f.applyUrl || f.url;
+  // Job boards (Himalayas, Remote OK, WWR) don't host the form. Use the employer's own link when the posting has one.
+  if (isJobBoardUrl(applyUrl)) applyUrl = findAtsLink(f.html ?? f.text ?? "") ?? applyUrl;
   return {
     id: `${source}:${externalId}`,
     source,

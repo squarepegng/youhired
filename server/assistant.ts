@@ -8,7 +8,7 @@
 
 import crypto from "node:crypto";
 import { applyBlocker, enqueue } from "./apply/queue.js";
-import { UNTRUSTED_RULE, untrusted } from "./guardrails.js";
+import { UNTRUSTED_RULE, isJobBoardUrl, untrusted } from "./guardrails.js";
 import type { LLM } from "./providers/types.js";
 import { profileBrief, progress, runSearch } from "./search.js";
 import { load, update } from "./store.js";
@@ -54,6 +54,7 @@ function jobLine(j: Job): string {
   return [
     `id=${j.id}`,
     `status=${j.status}`,
+    `can_auto_apply=${j.needsLogin || j.ats === "job-board" || isJobBoardUrl(j.applyUrl) ? "no (user applies on the site)" : "yes"}`,
     `title=${j.title}`,
     `company=${j.company}`,
     `fit=${j.fit ?? "?"}`,
@@ -95,7 +96,7 @@ Actions you can take (in "actions"):
 - set_brief: save the user's description of the job they want (seniority, field, industries, likes/dislikes). Write the full updated brief. Use this whenever they describe what they want.
 - update_search: change the job titles to match and title words to exclude. Titles are short ("product designer", "ux designer"); a posting matches if its title contains every word of one title. Include sensible variants.
 - run_search: look for new jobs now (takes a minute or two; results appear in To apply).
-- apply_jobs: fill in applications for the given job ids. Only use ids from the job list with status "found" (or "filled"/"error" to retry). Choose eligible, good-fit jobs that match what the user asked for. If they ask to apply but no matching jobs exist yet, run a search first and say you'll apply once results are in.
+- apply_jobs: fill in applications for the given job ids. Only use ids from the job list with status "found" (or "filled"/"error" to retry) and can_auto_apply=yes. For can_auto_apply=no jobs, tell the user they need to apply on the site themselves. Choose eligible, good-fit jobs that match what the user asked for. If they ask to apply but no matching jobs exist yet, run a search first and say you'll apply once results are in.
 - skip_jobs: move jobs to Skipped, with a reason.
 - open_job: show one job in the app.
 Leave unused fields empty ("" / [] / 0).

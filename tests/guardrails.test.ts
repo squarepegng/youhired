@@ -138,3 +138,15 @@ describe("AI answers are checked before use", () => {
     expect(res.needUser.has("a")).toBe(true);
   });
 });
+
+describe("job-board postings", () => {
+  it("finds the employer's real application link", async () => {
+    const { findAtsLink, isJobBoardUrl, detectAts } = await import("../server/guardrails.js");
+    expect(findAtsLink('<p>Apply <a href="https://jobs.lever.co/acme/0a1b2c3d-1111-2222-3333-444455556666?src=x">here</a></p>')).toBe("https://jobs.lever.co/acme/0a1b2c3d-1111-2222-3333-444455556666");
+    expect(findAtsLink("Apply at https://job-boards.greenhouse.io/acme/jobs/12345 today")).toBe("https://job-boards.greenhouse.io/acme/jobs/12345");
+    expect(findAtsLink("no link")).toBeNull();
+    expect(isJobBoardUrl("https://himalayas.app/companies/x/jobs/y")).toBe(true);
+    expect(detectAts("https://himalayas.app/companies/x/jobs/y")).toBe("job-board");
+    expect(detectAts("https://job-boards.greenhouse.io/acme/jobs/1")).toBe("greenhouse");
+  });
+});

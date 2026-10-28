@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright";
-import { detectAiScreening, detectInjection, isNeverApply } from "../guardrails.js";
+import { detectAiScreening, detectInjection, isJobBoardUrl, isNeverApply } from "../guardrails.js";
 import type { LLM } from "../providers/types.js";
 import { DATA_DIR, cvPath, load, update } from "../store.js";
 import type { Job, PendingQuestion } from "../types.js";
@@ -66,6 +66,10 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   const cv = opts.cvOverride ?? cvPath();
   if (!fs.existsSync(cv)) throw new Error("Upload your CV in Profile first.");
   if (job.needsLogin) return save(job, "do_it_yourself", "This site needs an account. JobPilot never creates accounts or signs in.");
+  if (job.ats === "job-board" || isJobBoardUrl(job.applyUrl)) {
+    const host = new URL(job.applyUrl).hostname.replace(/^www\./, "");
+    return save(job, "do_it_yourself", `This job is only listed on ${host}, which doesn't host the employer's application form or allow automated applying. Open the link and apply there.`);
+  }
   if (job.flags.includes("ai-screening")) return save(job, "do_it_yourself", job.statusReason);
 
   const ctx = await getContext(opts.channel, opts.headless);

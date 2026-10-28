@@ -129,6 +129,25 @@ export function hostNeedsLogin(url: string): boolean {
   return LOGIN_HOSTS.some((r) => r.test(url));
 }
 
+/** Job boards that list jobs but don't host the employer's application form. */
+export const JOB_BOARD_HOSTS = /(^|\.)(himalayas\.app|remoteok\.com|remoteok\.io|weworkremotely\.com|remotive\.com)$/i;
+
+export function isJobBoardUrl(url: string): boolean {
+  try {
+    return JOB_BOARD_HOSTS.test(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
+const ATS_LINK = /https?:\/\/(?:(?:boards|job-boards)\.greenhouse\.io\/[\w-]+\/jobs\/\d+|jobs\.lever\.co\/[\w.-]+\/[0-9a-f-]{36}|jobs\.ashbyhq\.com\/[\w.%-]+\/[0-9a-f-]{36}|apply\.workable\.com\/[\w-]+\/j\/[0-9A-F]+|[\w-]+\.recruitee\.com\/o\/[\w-]+|jobs\.smartrecruiters\.com\/[\w-]+\/\d+[\w-]*)/i;
+
+/** The employer's own application link, if a job-board posting includes one. */
+export function findAtsLink(html: string): string | null {
+  const m = (html || "").replace(/&amp;/g, "&").match(ATS_LINK);
+  return m ? m[0] : null;
+}
+
 export function detectAts(url: string): string {
   if (/greenhouse\.io/i.test(url) || /gh_jid=/i.test(url)) return "greenhouse";
   if (/lever\.co/i.test(url)) return "lever";
@@ -139,5 +158,6 @@ export function detectAts(url: string): string {
   if (/bamboohr\.com/i.test(url)) return "bamboohr";
   if (/teamtailor\.com/i.test(url)) return "teamtailor";
   if (hostNeedsLogin(url)) return "login-required";
+  if (isJobBoardUrl(url)) return "job-board";
   return "other";
 }

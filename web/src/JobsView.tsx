@@ -144,6 +144,7 @@ export function JobsView({ view, ctx, steps }: { view: View; ctx: Ctx; steps: St
                         <div className="meta">
                           {j.flags.includes("hidden-instructions") && <span className="chip danger" title="This posting hides instructions aimed at AI. JobPilot ignored them.">AI trap</span>}
                           {j.needsLogin && <span className="chip warn">Login</span>}
+                          {isBoardOnly(j) && <span className="chip warn" title="Only listed on a job board. JobPilot can't fill this one; you'll get the link.">Apply on site</span>}
                           {!selected && <EligChip job={j} />}
                           <Fit fit={j.fit} />
                           <span className="date">{relTime(j.statusDate)}</span>
@@ -184,4 +185,13 @@ function Onboarding({ steps, go }: { steps: Step[]; go: (v: View) => void }) {
       ))}
     </div>
   );
+}
+
+/** Listed only on a job board (Himalayas, Remote OK, WWR) with no employer form JobPilot can open. */
+export function isBoardOnly(j: Job): boolean {
+  try {
+    return j.ats === "job-board" || /(^|\.)(himalayas\.app|remoteok\.com|remoteok\.io|weworkremotely\.com|remotive\.com)$/i.test(new URL(j.applyUrl).hostname);
+  } catch {
+    return false;
+  }
 }
