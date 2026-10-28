@@ -53,11 +53,11 @@ export function defaultSearch(): SearchPrefs {
     titles: ["product designer"],
     excludeKeywords: ["intern"],
     jobTypes: ["full_time", "contract"],
-    sources: { greenhouse: true, lever: true, ashby: true, remotive: true, remoteok: true, himalayas: true, wwr: true },
+    sources: { greenhouse: true, lever: true, ashby: true, remotive: false, remoteok: true, himalayas: true, wwr: true },
     // Public job boards of companies known to hire remotely. Add your own in Search settings.
-    greenhouseBoards: ["gitlab", "automatticcareers", "canonical", "doist", "hotjar"],
-    leverCompanies: ["toptal", "loom"],
-    ashbyOrgs: ["zapier", "deel", "remote", "posthog"],
+    greenhouseBoards: ["gitlab", "automatticcareers", "canonical", "elastic", "grafanalabs", "wikimedia", "vercel"],
+    leverCompanies: ["toptal"],
+    ashbyOrgs: ["zapier", "posthog", "linear", "supabase", "sentry"],
     maxAgeDays: 30,
     maxToScore: 40,
   };

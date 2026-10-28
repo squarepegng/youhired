@@ -97,6 +97,7 @@ export interface PendingQuestion {
   label: string;
   required: boolean;
   options?: string[];
+  hint?: string;
   answer?: string;
 }
 
