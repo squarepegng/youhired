@@ -59,7 +59,11 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
       await api(`/api/jobs/${id}/apply`, {});
       setBusy(true);
     }, "Opening the application in the browser…");
-  const submit = () => run(() => api(`/api/jobs/${id}/submit`, {}));
+  const submit = () =>
+    run(async () => {
+      await api(`/api/jobs/${id}/submit`, {});
+      setBusy(true);
+    }, "Submitting… JobPilot fixes anything the form asks for and confirms when it's sent.");
   const applyAnyway = () =>
     run(async () => {
       await api(`/api/jobs/${id}/apply-anyway`, {});
@@ -291,7 +295,7 @@ function NextStep(p: {
     return (
       <div className="next accent">
         <div className="h">
-          <LoaderCircle size={15} className="spin" /> Working on the application…
+          <LoaderCircle size={15} className="spin" /> {job.status === "filled" ? "Submitting…" : "Working on the application…"}
         </div>
         <p>{p.background ? "Filling the form in the background." : "Filling the form in the JobPilot browser window."} Watch the activity below. It stops before submitting unless auto-submit is on.</p>
       </div>

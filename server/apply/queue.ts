@@ -63,8 +63,15 @@ async function work(): Promise<void> {
       overrides.delete(id);
       await prepare(id, getLLM(), { autoSubmit: o.autoSubmit ?? settings.autoSubmit, channel: settings.browserChannel, headless: o.headless ?? settings.background, waitForHuman: o.waitForHuman });
     } catch (e) {
-      logs.get(id)?.push(`Stopped: ${(e as Error).message}`);
-      setStatus(id, "error", (e as Error).message);
+      const msg = (e as Error).message;
+      logs.get(id)?.push(`Stopped: ${msg}`);
+      if (/confirm your profile|upload your cv/i.test(msg)) {
+        // A setup problem, not this job's fault: put it and everything waiting back, and stop.
+        for (const j of [id, ...queue.splice(0)]) setStatus(j, "found", `Waiting: ${msg}`);
+        current = null;
+        return;
+      }
+      setStatus(id, "error", msg);
     }
     current = null;
   }

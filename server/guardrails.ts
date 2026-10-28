@@ -130,7 +130,7 @@ export function hostNeedsLogin(url: string): boolean {
 }
 
 /** Job boards that list jobs but don't host the employer's application form. */
-export const JOB_BOARD_HOSTS = /(^|\.)(himalayas\.app|remoteok\.com|remoteok\.io|weworkremotely\.com|remotive\.com)$/i;
+export const JOB_BOARD_HOSTS = /(^|\.)(himalayas\.app|remoteok\.com|remoteok\.io|weworkremotely\.com|remotive\.com|startup\.jobs|nodesk\.co|jobicy\.com|workingnomads\.com|arbeitnow\.com|4dayweek\.io)$/i;
 
 export function isJobBoardUrl(url: string): boolean {
   try {

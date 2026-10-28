@@ -191,3 +191,14 @@ export async function draftPending(llm: LLM, p: Profile, job: Job, pending: { fi
     /* drafts are a convenience; the questions still stand */
   }
 }
+
+/** A cover note on its own (for forms with a cover letter slot but no free-text questions). Checked like any answer. */
+export async function writeCoverNote(llm: LLM, p: Profile, job: Job): Promise<string> {
+  const truth = `${groundTruth(p)}\n${job.description}\n${job.title}\n${job.company}`;
+  const planted = detectInjection(job.description).flatMap((f) => f.plantedWords);
+  for (let i = 0; i < 2; i++) {
+    const { coverNote } = await writeAnswers(llm, p, job, [], i ? "Your previous cover note used numbers or words not in the CV. Rewrite using only the documents." : "");
+    if (coverNote && !inventedNumbers(coverNote, truth).length && !containsPlantedWord(coverNote, planted).length) return coverNote;
+  }
+  return "";
+}

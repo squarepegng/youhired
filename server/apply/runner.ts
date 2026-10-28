@@ -9,13 +9,14 @@ import type { LLM } from "../providers/types.js";
 import { alreadyApplied, appliedReason } from "../dedupe.js";
 import { checkLiveness } from "../liveness.js";
 import { tailorCv } from "../tailor.js";
+import { makeLLM } from "../providers/index.js";
 import { checkLocation } from "../eligibility.js";
 import { connectedHosts } from "../sites.js";
 import { findEmployerForm } from "../sources/index.js";
 import { DATA_DIR, cvPath, load, update } from "../store.js";
 import type { Job, PendingQuestion } from "../types.js";
 import { type AgentResult, runAgent } from "./agent.js";
-import { answerWithChecks, draftPending } from "./answers.js";
+import { answerWithChecks, draftPending, writeCoverNote } from "./answers.js";
 import { detectBlocker, getContext, hiddenText, isHeadless, pageText, readForm } from "./browser.js";
 import { fillField, findSubmit, looksSubmitted, peekComboOptions, visibleErrors } from "./filler.js";
 import { type FormField, type Mapped, mapAll, normQ } from "./mapper.js";
@@ -252,27 +253,47 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
 
   // Fill
   let coverFile: string | undefined;
-  if (mapped.some((m) => m.source === "cover-file")) {
-    if (!coverNote) return save(job, "needs_answer", "This form needs a cover letter file and none passed the checks. Write one or skip.");
-    coverFile = path.join(DATA_DIR, "cover", `${id.replace(/[^\w-]/g, "_")}.txt`);
-    fs.mkdirSync(path.dirname(coverFile), { recursive: true });
-    fs.writeFileSync(coverFile, coverNote);
+  const coverSlot = mapped.find((m) => m.source === "cover-file");
+  if (coverSlot) {
+    if (!coverNote && llm && !ownWords) {
+      log(id, "Writing a cover letter for this role…");
+      coverNote = await writeCoverNote(llm, p, job).catch(() => "");
+      job.coverNote = coverNote || job.coverNote;
+    }
+    if (coverNote) {
+      coverFile = path.join(DATA_DIR, "cover", `${id.replace(/[^\w-]/g, "_")}.txt`);
+      fs.mkdirSync(path.dirname(coverFile), { recursive: true });
+      fs.writeFileSync(coverFile, coverNote);
+    } else if (coverSlot.field.required) {
+      return save(job, "needs_answer", "This form needs a cover letter and none passed the checks. Write one or skip.");
+    } else Object.assign(coverSlot, { value: null, note: "Optional cover letter skipped" });
   }
   const files = { cv, cover: coverFile };
   const order = (m: Mapped) => (m.field.kind === "file" ? 0 : m.field.kind === "combobox" ? 2 : 1);
+  const failed: string[] = [];
   for (const m of [...mapped].sort((a, b) => order(a) - order(b))) {
     if (m.value == null || m.value === "") continue;
-    const r = await fillField(page, m.field, m.value, files);
-    if (!r.ok) log(id, `Couldn't fill "${m.field.label}": ${r.note}`);
+    let r = await fillField(page, m.field, m.value, files);
+    if (!r.ok) {
+      // React forms (Ashby, Greenhouse) redraw fields; find this one again and retry once.
+      const again = (await readForm(page)).find((f) => f.label === m.field.label && f.kind === m.field.kind);
+      if (again) r = await fillField(page, again, m.value, files);
+    }
+    if (!r.ok) {
+      failed.push(m.field.label);
+      log(id, `Couldn't fill "${m.field.label}": ${r.note}`);
+    }
   }
 
   const values = new Map<string, string | string[]>();
   for (const m of mapped) if (m.value != null && m.value !== "") values.set(normQ(m.field.label), m.value);
   sessions.set(id, { page, mapped, values, files });
   let missing = await refillMissing(id);
-  if (missing.length && llm && !pending.length) {
-    log(id, `${missing.length} required field(s) still empty: the AI agent will finish them`);
-    const r = await runAgent({ page, llm, job, profile: p, files, autoSubmit: false, ownWords, log: (m) => log(id, m), maxSteps: 15, hint: `The form is partly filled already. Fill only the remaining required fields: ${missing.map((f) => f.label).join("; ")}. Then answer ready_to_submit.` });
+  const unfinished = [...new Set([...missing.map((f) => f.label), ...failed])];
+  if (unfinished.length && llm && !pending.length) {
+    log(id, `${unfinished.length} field(s) still need filling: the AI agent will finish them`);
+    const values = mapped.filter((m) => failed.includes(m.field.label) && typeof m.value === "string").map((m) => `"${m.field.label}" → ${String(m.value).slice(0, 400)}`);
+    const r = await runAgent({ page, llm, job, profile: p, files, autoSubmit: false, ownWords, log: (m) => log(id, m), maxSteps: 25, hint: `The form is partly filled already. Fill only these fields: ${unfinished.join("; ")}.${values.length ? ` Use these exact answers: ${values.join(" | ")}` : ""} Then answer ready_to_submit.` });
     job.answers = [...(job.answers ?? []), ...r.answers];
     if (r.outcome === "need_user") {
       job.pending = r.questions.map((q, i) => ({ fieldId: `agent-${i}`, label: q.label, required: true, options: q.options.length ? q.options : undefined }));
@@ -415,6 +436,14 @@ export function finishHandoff(id: string): "watching" | "reopen" {
   return "reopen";
 }
 
+function llmNow(): LLM | null {
+  try {
+    return makeLLM(load().settings);
+  } catch {
+    return null;
+  }
+}
+
 export function shotPath(id: string): string {
   const dir = path.join(DATA_DIR, "screens");
   fs.mkdirSync(dir, { recursive: true });
@@ -452,11 +481,29 @@ async function refillMissing(id: string): Promise<FormField[]> {
   return again.filter((f) => f.required && !f.value && f.kind !== "file");
 }
 
+const submitting = new Set<string>();
+export const isSubmitting = (id: string) => submitting.has(id);
+
 export async function submit(id: string): Promise<Job> {
   const job = load().jobs[id];
-  const s = sessions.get(id);
   if (!job) throw new Error("Job not found");
-  if (!s || s.page.isClosed()) throw new Error("The browser window for this job was closed. Click Apply again.");
+  if (submitting.has(id)) return job; // a second click while one is running does nothing
+  submitting.add(id);
+  try {
+    return await submitOnce(id, job);
+  } finally {
+    submitting.delete(id);
+  }
+}
+
+async function submitOnce(id: string, job: Job): Promise<Job> {
+  const s = sessions.get(id);
+  if (!s || s.page.isClosed()) {
+    // The form was closed (or the app restarted): fill it again and submit.
+    log(id, "The filled form isn't open any more: filling it again, then submitting.");
+    return prepare(id, llmNow(), { autoSubmit: true, channel: load().settings.browserChannel, headless: load().settings.background });
+  }
+  let agentTried = false;
   for (let attempt = 1; attempt <= 3; attempt++) {
     const btn = await findSubmit(s.page);
     if (!btn) return save(job, "filled", "Couldn't find the submit button. Submit in the browser window, then mark it applied.");
@@ -478,6 +525,21 @@ export async function submit(id: string): Promise<Job> {
     }
     const errs = await visibleErrors(s.page);
     if (errs.length) log(id, `Form says: ${errs.join(" · ")}`);
+    const llm = llmNow();
+    if (errs.length && llm && !agentTried) {
+      // Let the agent read the errors, fix the fields and submit.
+      agentTried = true;
+      log(id, "The form isn't accepting it yet: the AI agent will fix what it's asking for.");
+      const r = await runAgent({ page: s.page, llm, job, profile: load().profile, files: s.files, autoSubmit: true, log: (m) => log(id, m), maxSteps: 20, hint: `The candidate already pressed Submit and the form shows these errors: ${errs.join(" · ")}. Fix exactly those (attach the cover letter with upload_cover if one is asked for), then click the final submit button. Answer submitted once a confirmation shows.` });
+      job.answers = [...(job.answers ?? []), ...r.answers];
+      if (r.outcome === "submitted" || (await looksSubmitted(r.page))) return save(job, "applied", "Confirmation page shown");
+      if (r.outcome === "captcha") return humanCheck(job, r.page, { headless: isHeadless() } as ApplyOptions);
+      if (r.outcome === "need_user") {
+        job.pending = r.questions.map((q, i) => ({ fieldId: `agent-${i}`, label: q.label, required: true, options: q.options.length ? q.options : undefined }));
+        return save(job, "needs_answer", r.reason);
+      }
+      continue;
+    }
     const missing = await refillMissing(id);
     if (missing.length) {
       job.pending = missing.map((f) => ({ fieldId: f.id, label: f.label, required: true, options: f.options.length ? f.options : undefined }));

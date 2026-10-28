@@ -172,7 +172,8 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
 
   // Files
   if (f.kind === "file") {
-    if (/cover/.test(l)) return f.required ? { field: f, value: "cover", source: "cover-file" } : { field: f, value: null, source: "rule", note: "Optional cover letter file skipped" };
+    // Cover letter slot: always attach one (forms often mark it required only in the label or on submit).
+    if (/cover/.test(l)) return { field: f, value: "cover", source: "cover-file", note: f.required ? undefined : "optional" };
     if (/resume|résumé|cv\b|curriculum/.test(l) || f.required) return { field: f, value: "cv", source: "cv-file" };
     return { field: f, value: null, source: "rule", note: "Optional upload skipped" };
   }

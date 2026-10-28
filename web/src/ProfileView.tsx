@@ -25,8 +25,11 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Autosave. Any edit means the facts need confirming again.
+  // Only the facts JobPilot states on forms need re-confirming when they change.
+  const FACTS: (keyof Profile)[] = ["legalName", "email", "phone", "country", "city", "workAuth", "needsSponsorship", "openToContractor", "salary", "currentCompensation", "noticePeriod", "eeo", "neverApply"];
   const set = (patch: Partial<Profile>) => {
-    const next = { ...p, ...patch, confirmed: false };
+    const factChanged = Object.keys(patch).some((k) => FACTS.includes(k as keyof Profile));
+    const next = { ...p, ...patch, confirmed: factChanged ? false : p.confirmed };
     setP(next);
     clearTimeout(saveT.current);
     saveT.current = setTimeout(() => void api<Profile>("/api/profile", next).then(() => ctx.refresh()), 500);

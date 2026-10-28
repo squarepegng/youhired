@@ -3,7 +3,7 @@ import path from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import { applyBlocker, configureQueue, currentApply, enqueue, queued } from "./apply/queue.js";
-import { closeSession, finishHandoff, hasSession, logs, shotPath, submit } from "./apply/runner.js";
+import { closeSession, finishHandoff, hasSession, isSubmitting, logs, shotPath, submit } from "./apply/runner.js";
 import { activity, chat, configureAssistant, resolveAction } from "./assistant.js";
 import { cvToText, extractProfile, mergeExtract } from "./cv.js";
 import { detectAts, hostNeedsLogin } from "./guardrails.js";
@@ -66,7 +66,7 @@ app.get("/api/models", wrap(async (_req, res) => {
 app.post("/api/profile", (req, res) => {
   const b = req.body as Partial<Profile>;
   const s = update((st) => {
-    st.profile = { ...st.profile, ...b, confirmed: b.confirmed ?? false };
+    st.profile = { ...st.profile, ...b, confirmed: b.confirmed ?? st.profile.confirmed };
   });
   res.json(s.profile);
 });
@@ -148,7 +148,7 @@ app.get("/api/jobs", (_req, res) => {
   const q = queued();
   const cur = currentApply();
   const prof = load().profile;
-  const jobs = Object.values(load().jobs).map((j) => ({ ...j, description: j.description.slice(0, 4000), hasSession: hasSession(j.id), working: cur === j.id || q.includes(j.id), tailoredCv: fs.existsSync(tailoredPath(j, prof)) }));
+  const jobs = Object.values(load().jobs).map((j) => ({ ...j, description: j.description.slice(0, 4000), hasSession: hasSession(j.id), working: cur === j.id || q.includes(j.id) || isSubmitting(j.id), tailoredCv: fs.existsSync(tailoredPath(j, prof)) }));
   res.json(jobs);
 });
 
@@ -222,9 +222,14 @@ app.post("/api/jobs/:id/finish", (req, res) => {
   res.json({ ok: true, mode: "reopen" });
 });
 
-app.post("/api/jobs/:id/submit", wrap(async (req, res) => {
-  res.json(await submit(String(req.params.id)));
-}));
+app.post("/api/jobs/:id/submit", (req, res) => {
+  const id = String(req.params.id);
+  if (!load().jobs[id]) return res.status(404).json({ error: "Job not found" });
+  if (isSubmitting(id)) return res.json({ started: false, already: true });
+  logs.set(id, [...(logs.get(id) ?? []), "Submitting…"]);
+  void submit(id).catch((e) => logs.get(id)?.push(`Stopped: ${(e as Error).message}`));
+  res.json({ started: true });
+});
 
 app.post("/api/jobs/:id/close", wrap(async (req, res) => {
   await closeSession(String(req.params.id));
@@ -260,7 +265,7 @@ app.post("/api/jobs/:id/answers", (req, res) => {
 
 app.get("/api/jobs/:id/log", (req, res) => {
   const id = String(req.params.id);
-  res.json({ log: logs.get(id) ?? [], applying: currentApply() === id || queued().includes(id) });
+  res.json({ log: logs.get(id) ?? [], applying: currentApply() === id || queued().includes(id) || isSubmitting(id) });
 });
 
 // ── Connected sites (you sign in yourself, once) ──

@@ -255,7 +255,7 @@ function Onboarding({ steps, go }: { steps: Step[]; go: (v: View) => void }) {
 /** Listed only on a job board (Himalayas, Remote OK, WWR) with no employer form JobPilot can open. */
 export function isBoardOnly(j: Job): boolean {
   try {
-    return j.ats === "job-board" || /(^|\.)(himalayas\.app|remoteok\.com|remoteok\.io|weworkremotely\.com|remotive\.com)$/i.test(new URL(j.applyUrl).hostname);
+    return j.ats === "job-board" || /(^|\.)(himalayas\.app|remoteok\.com|remoteok\.io|weworkremotely\.com|remotive\.com|startup\.jobs|nodesk\.co|jobicy\.com|workingnomads\.com|arbeitnow\.com)$/i.test(new URL(j.applyUrl).hostname);
   } catch {
     return false;
   }

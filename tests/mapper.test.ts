@@ -132,9 +132,9 @@ describe("EEO, consent, misc", () => {
   it("answers 'worked here before' from the CV's employer list", () => {
     expect(m("Have you previously worked at or consulted for GitLab?", "combobox").value).toBe("No");
   });
-  it("uploads the CV, skips optional cover letter files", () => {
+  it("uploads the CV and attaches a cover letter wherever there's a slot", () => {
     expect(m("Resume/CV", "file").value).toBe("cv");
-    expect(m("Cover Letter", "file", { required: false }).value).toBeNull();
+    expect(m("Cover Letter", "file", { required: false }).value).toBe("cover");
   });
   it("experience questions go to the AI (which must say if it can't answer)", () => {
     expect(m("Have you shipped a React Native app?", "select", { options: ["Yes", "No"] }).need).toBe("ai");
