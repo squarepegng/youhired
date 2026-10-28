@@ -157,12 +157,17 @@ export async function runSearch(llm: LLM | null): Promise<void> {
     say(`${toScore.length} jobs passed the filters.`);
 
     // Job-board listings: find the employer's own Greenhouse/Lever/Ashby form so JobPilot can apply there.
-    const waiting = Object.values(load().jobs).filter((j) => j.status === "found" && isJobBoardUrl(j.applyUrl) && !toScore.includes(j));
+    // Also re-check earlier job-board jobs (including ones previously left for you to do yourself).
+    const waiting = Object.values(load().jobs).filter((j) => (j.status === "found" || (j.status === "do_it_yourself" && !j.needsLogin && !j.flags.includes("ai-screening"))) && isJobBoardUrl(j.applyUrl) && !toScore.includes(j));
     const boardJobs = [...toScore.filter((j) => isJobBoardUrl(j.applyUrl)), ...waiting].slice(0, 30);
     if (boardJobs.length) say(`Looking for the employer's own application form for ${boardJobs.length} job-board listings…`);
     for (const j of boardJobs) {
-      const hit = await findEmployerForm(j.company, j.title).catch(() => null);
+      const hit = await findEmployerForm(j.company, j.title, j.url).catch(() => null);
       if (!hit) continue;
+      if (j.status === "do_it_yourself") {
+        j.status = "found";
+        j.statusReason = `Found ${j.company}'s own application form`;
+      }
       j.applyUrl = hit.applyUrl;
       j.ats = hit.ats;
       j.needsLogin = false;

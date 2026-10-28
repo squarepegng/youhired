@@ -38,6 +38,7 @@ interface El {
   file?: string;
   disabled?: boolean;
   inView?: boolean;
+  frame?: number;
 }
 interface Snapshot {
   url: string;
@@ -130,10 +131,26 @@ Truthfulness, always:
 
 Don't repeat an action that didn't change anything; try another way or report blocked.`;
 
+/** Read the main page and every embedded frame (many career sites put the form in an iframe). */
 async function snapshot(page: Page): Promise<Snapshot> {
-  // Check every frame; most ATS forms are in the main frame, some are embedded.
-  const main = (await page.evaluate(READER)) as Snapshot;
-  return main;
+  const frames = page.frames();
+  let main: Snapshot | null = null;
+  const elements: El[] = [];
+  const texts: string[] = [];
+  for (let i = 0; i < frames.length; i++) {
+    const f = frames[i];
+    if (i > 0 && /recaptcha|hcaptcha|challenges\.cloudflare|google\.com\/maps|youtube|doubleclick|googletagmanager|facebook|stripe/.test(f.url())) continue;
+    try {
+      const snap = (await f.evaluate(READER.replace("let n = 0;", `let n = ${elements.length};`))) as Snapshot;
+      for (const e of snap.elements) elements.push({ ...e, frame: i });
+      if (i === 0) main = snap;
+      else if (snap.elements.length) texts.push(snap.text);
+    } catch {
+      /* frame not ready or cross-origin and closed */
+    }
+  }
+  if (!main) throw new Error("Page not readable");
+  return { ...main, elements, text: [main.text, ...texts].join("\n").slice(0, 5000) };
 }
 
 function describe(s: Snapshot): string {
@@ -148,6 +165,7 @@ function describe(s: Snapshot): string {
     if (e.password) bits.push("(PASSWORD: never type here)");
     if (e.disabled) bits.push("(disabled)");
     if (!e.inView) bits.push("(off-screen)");
+    if (e.frame) bits.push("(in embedded form)");
     return bits.filter(Boolean).join(" ");
   });
   return `URL: ${s.url}\nTitle: ${s.title}\nMore below: ${s.scrollable ? "yes" : "no"}\n\nElements:\n${lines.join("\n")}`;
@@ -250,7 +268,7 @@ export async function runAgent(opts: {
       });
 
       const el = snap.elements.find((e) => e.id === decision.element);
-      const target = el ? page.locator(`[data-jp-a="${el.id}"]`).first() : null;
+      const target = el ? (page.frames()[el.frame ?? 0] ?? page.mainFrame()).locator(`[data-jp-a="${el.id}"]`).first() : null;
       const say = `${decision.action}${el ? ` [${el.id}] "${el.label.slice(0, 60)}"` : ""}${decision.text ? ` = "${decision.text.slice(0, 60)}"` : ""}`;
       log(`${decision.thought}  →  ${say}`);
       let note = "";

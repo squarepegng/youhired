@@ -65,6 +65,23 @@
     out.push(d);
     if (out.length >= 220) break;
   }
+  // Custom "buttons": plain elements that look clickable (cursor: pointer / onclick / tabindex) with short text.
+  if (out.length < 220) {
+    const seen = new Set(out.map((d) => d.id));
+    for (const el of document.querySelectorAll("div, span, li, p, h2, h3, h4, label, [onclick], [tabindex]")) {
+      if (el.hasAttribute("data-jp-a") || el.closest("[data-jp-a]") || el.querySelector("a, button, input, select, textarea, [data-jp-a]")) continue;
+      const t = txt(el);
+      if (!t || t.length > 60) continue;
+      const cs = getComputedStyle(el);
+      if (!(cs.cursor === "pointer" || el.hasAttribute("onclick") || (el.hasAttribute("tabindex") && el.getAttribute("tabindex") !== "-1"))) continue;
+      if (!visible(el)) continue;
+      const id = ++n;
+      el.setAttribute("data-jp-a", String(id));
+      const r = el.getBoundingClientRect();
+      out.push({ id, kind: "clickable", label: t.slice(0, 120), inView: r.top < innerHeight && r.bottom > 0 });
+      if (out.length >= 260) break;
+    }
+  }
   const main = document.querySelector("main, [role='main'], form") || document.body;
   return { url: location.href, title: document.title, elements: out, text: txt(main).slice(0, 3500), scrollable: document.documentElement.scrollHeight > innerHeight + scrollY + 20 };
 })();

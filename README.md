@@ -67,6 +67,33 @@ The app only listens on `localhost`, so nobody else on your network can reach it
 
 Each scored job costs one AI call. "Score at most" in Search sets the limit per run.
 
+## Applying for you
+
+JobPilot's goal is to apply for you. You choose how:
+
+- **Pick jobs.** Tick them in any list and press **Apply**.
+- **Apply to everything that fits.** Press **Apply to all** in To apply, or tell the Assistant "apply to every eligible job above 70".
+- **Autopilot.** Turn it on in Settings. JobPilot submits each application itself, and only marks it **Applied** when the employer's confirmation page appears. That's also when the employer emails you their usual "we received your application". With Autopilot off, every form waits for you to press **Submit**.
+- **Work in the background.** Also in Settings. JobPilot does all of this with no browser window. Some sites show "verify you're human" checks to hidden browsers; those jobs come back to you.
+
+How JobPilot gets to the form:
+
+1. **Company boards** (Greenhouse, Lever, Ashby, Recruitee, Workable): JobPilot opens the employer's form directly.
+2. **Job-board listings** (Himalayas, We Work Remotely, Remote OK): it looks up the same role on the employer's own board through their public APIs. It applies there, after re-checking eligibility against the employer's own wording.
+3. **Anything else:** the **AI browser agent** takes over. It reads the page (and a screenshot, if your model supports images), clicks "Apply", follows the link to the employer's site, and works through custom or multi-step forms one step at a time.
+
+The agent follows the same rules as everything else:
+- Facts always come from your profile; if the model types something different, your profile wins.
+- It never enters passwords or creates accounts, and it stops at CAPTCHAs.
+- It respects robots.txt and pages that reject AI-written applications.
+- Every "Yes / I agree" click is listed for you to review.
+
+What still comes to you, in the Inbox or Do it yourself:
+- questions only you can answer
+- sites that need an account (We Work Remotely's own apply flow does)
+- CAPTCHAs
+- employers that don't accept AI-assisted applications
+
 ## How applying works
 
 When you press **Apply**, JobPilot works through these steps:

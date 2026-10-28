@@ -71,7 +71,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   if (job.needsLogin) return save(job, "do_it_yourself", "This site needs an account. JobPilot never creates accounts or signs in.");
   if (job.ats === "job-board" || isJobBoardUrl(job.applyUrl)) {
     log(id, `Looking for ${job.company}'s own application form…`);
-    const hit = await findEmployerForm(job.company, job.title).catch(() => null);
+    const hit = await findEmployerForm(job.company, job.title, job.url).catch(() => null);
     if (hit) {
       log(id, `Found it on ${hit.ats}: ${hit.applyUrl}`);
       const own = checkLocation(hit.location, p, "");

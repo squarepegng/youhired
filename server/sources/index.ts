@@ -109,6 +109,39 @@ export async function ashby(org: string): Promise<RawJob[]> {
     });
 }
 
+export async function recruitee(slug: string): Promise<RawJob[]> {
+  const body = await politeGet(`https://${encodeURIComponent(slug)}.recruitee.com/api/offers/`, 6 * HOUR);
+  const data = JSON.parse(body) as { offers?: { id: number; title: string; company_name?: string; location?: string; remote?: boolean; careers_url: string; careers_apply_url?: string; description?: string; requirements?: string; created_at?: string; country?: string }[] };
+  return (data.offers ?? []).map((o) =>
+    mk("greenhouse", `recruitee-${slug}-${o.id}`, {
+      company: o.company_name || slug,
+      title: o.title,
+      url: o.careers_url,
+      applyUrl: o.careers_apply_url || `${o.careers_url}/c/new`,
+      // For remote offers Recruitee's "country" is the company's base, not a hiring restriction.
+      location: o.remote ? ["Remote", /remote/i.test(o.location ?? "") ? "" : o.location ?? ""].filter(Boolean).join(" — ") : [o.location, o.country].filter(Boolean).join(" — "),
+      html: `${o.description ?? ""}${o.requirements ?? ""}`,
+      postedAt: o.created_at,
+    }),
+  );
+}
+
+export async function workable(slug: string): Promise<RawJob[]> {
+  const body = await politeGet(`https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(slug)}`, 6 * HOUR);
+  const data = JSON.parse(body) as { name?: string; jobs?: { title: string; shortcode: string; url: string; application_url?: string; country?: string; city?: string; telecommuting?: boolean; published_on?: string }[] };
+  return (data.jobs ?? []).map((j) =>
+    mk("greenhouse", `workable-${slug}-${j.shortcode}`, {
+      company: data.name || slug,
+      title: j.title,
+      url: j.url,
+      applyUrl: j.application_url || `${j.url}/apply/`,
+      location: [j.telecommuting ? "Remote" : "", j.city ?? "", j.country ?? ""].filter(Boolean).join(" — "),
+      text: "",
+      postedAt: j.published_on,
+    }),
+  );
+}
+
 // Remotive asks for attribution, a link back, and at most ~4 fetches a day. Its robots.txt
 // currently disallows /api/* for all bots, so politeGet will refuse and the UI shows why.
 export async function remotive(query: string): Promise<RawJob[]> {
@@ -266,12 +299,17 @@ function titleScore(a: string, b: string): number {
   return inter / Math.max(A.size, B.size);
 }
 
-export async function findEmployerForm(company: string, title: string): Promise<{ applyUrl: string; ats: string; url: string; location: string } | null> {
-  for (const slug of slugCandidates(company)) {
+export async function findEmployerForm(company: string, title: string, boardUrl = ""): Promise<{ applyUrl: string; ats: string; url: string; location: string } | null> {
+  // Job-board links often carry the company's handle (himalayas.app/companies/parallelhq/…).
+  const fromUrl = boardUrl.match(/\/companies\/([a-z0-9-]+)/i)?.[1]?.toLowerCase();
+  const slugs = [...new Set([...(fromUrl ? [fromUrl, fromUrl.replace(/-/g, "")] : []), ...slugCandidates(company)])];
+  for (const slug of slugs) {
     const tries: [string, () => Promise<RawJob[]>][] = [
       ["ashby", () => ashby(slug)],
       ["greenhouse", () => greenhouse(slug)],
       ["lever", () => lever(slug)],
+      ["recruitee", () => recruitee(slug)],
+      ["workable", () => workable(slug)],
     ];
     for (const [ats, fn] of tries) {
       let jobs: RawJob[] = [];
@@ -280,6 +318,8 @@ export async function findEmployerForm(company: string, title: string): Promise<
       } catch {
         continue; // no board under this name
       }
+      // Same company? Recruitee/Workable report the employer's name; reject a different company under the same handle.
+      if ((ats === "recruitee" || ats === "workable") && jobs[0] && titleScore(jobs[0].company, company) < 0.5 && !jobs[0].company.toLowerCase().includes(company.toLowerCase().split(/\s+/)[0])) continue;
       const best = jobs.map((j) => ({ j, s: titleScore(j.title, title) })).sort((x, y) => y.s - x.s)[0];
       if (best && best.s >= 0.75) return { applyUrl: best.j.applyUrl, ats, url: best.j.url, location: best.j.location };
     }

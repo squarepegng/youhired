@@ -14,7 +14,7 @@ import { applyBlocker, enqueue } from "./apply/queue.js";
 import { UNTRUSTED_RULE, isJobBoardUrl, untrusted } from "./guardrails.js";
 import type { LLM } from "./providers/types.js";
 import { profileBrief, progress, runSearch } from "./search.js";
-import { ashby, greenhouse, lever, type RawJob } from "./sources/index.js";
+import { ashby, greenhouse, lever, recruitee, workable, type RawJob } from "./sources/index.js";
 import { load, update } from "./store.js";
 import type { ChatAction, ChatMessage, Job } from "./types.js";
 
@@ -82,7 +82,7 @@ TOOLS (call several per round; results come back next round):
 - list_jobs(status?, query?, min_fit?, limit?): jobs in the tracker with status, fit, eligibility, whether JobPilot can apply automatically.
 - get_job(job_ids): full details for up to 3 jobs: where they hire (exact wording), why it fits, pay, the posting text.
 - search_jobs(titles?, brief?): run a fresh search across all job sources NOW and wait for results (1-3 minutes). Optionally update titles/brief first. Returns the new jobs.
-- check_companies(companies): look up companies' public Greenhouse/Lever/Ashby boards; returns which exist and their open roles matching the candidate's titles. Use your own knowledge of companies that hire remotely internationally (e.g. GitLab, Automattic, Zapier, Canonical, Toggl, Doist, Remote, Deel, Hotjar, Buffer, Wikimedia, Kraken, Sourcegraph, PostHog, Supabase, Vercel, Grafana Labs, Elastic, Sentry, Linear, Mozilla, DuckDuckGo, Andela, Paystack, Flutterwave, Moniepoint, Chipper Cash, Kuda, Yoco...) to suggest board names.
+- check_companies(companies): look up companies' public Greenhouse/Lever/Ashby/Recruitee/Workable boards; returns which exist and their open roles matching the candidate's titles. Use your own knowledge of companies that hire remotely internationally (e.g. GitLab, Automattic, Zapier, Canonical, Toggl, Doist, Remote, Deel, Hotjar, Buffer, Wikimedia, Kraken, Sourcegraph, PostHog, Supabase, Vercel, Grafana Labs, Elastic, Sentry, Linear, Mozilla, DuckDuckGo, Andela, Paystack, Flutterwave, Moniepoint, Chipper Cash, Kuda, Yoco...) to suggest board names.
 - add_companies(companies): add verified boards to future searches.
 - set_brief(brief): save what the candidate wants (seniority, field, industries, likes/dislikes). Fit scoring uses it.
 - update_search(titles, exclude_keywords): change which titles searches match. Titles are short ("product designer"); a posting matches if its title contains every word.
@@ -232,7 +232,7 @@ async function checkCompanies(c: Call): Promise<string> {
     const s = slug(name);
     note(`Checking ${name}'s job board…`);
     const found: string[] = [];
-    for (const [ats, fn] of [["ashby", ashby], ["greenhouse", greenhouse], ["lever", lever]] as [string, (x: string) => Promise<RawJob[]>][]) {
+    for (const [ats, fn] of [["ashby", ashby], ["greenhouse", greenhouse], ["lever", lever], ["recruitee", recruitee], ["workable", workable]] as [string, (x: string) => Promise<RawJob[]>][]) {
       try {
         const jobs = await fn(s);
         const matches = jobs.filter((j) => words.some((w) => j.title.toLowerCase().includes(w)));
