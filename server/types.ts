@@ -9,6 +9,7 @@ export interface Settings {
   baseUrl?: string; // for "compatible" (OpenRouter, Ollama, ...)
   autoSubmit: boolean; // default false: pause for review before submitting
   browserChannel: "chrome" | "msedge" | "chromium";
+  background: boolean; // run the browser hidden (headless); review via screenshots in the app
 }
 
 export type WorkAuthStatus = "citizen" | "authorized" | "needs_sponsorship" | "not_authorized";

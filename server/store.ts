@@ -65,7 +65,7 @@ export function defaultSearch(): SearchPrefs {
 }
 
 export function defaultSettings(): Settings {
-  return { provider: "anthropic", model: "claude-opus-5-5", apiKey: "", baseUrl: "", autoSubmit: false, browserChannel: "chrome" };
+  return { provider: "anthropic", model: "claude-opus-5-5", apiKey: "", baseUrl: "", autoSubmit: false, browserChannel: "chrome", background: false };
 }
 
 let cache: Store | null = null;

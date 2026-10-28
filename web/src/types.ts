@@ -11,6 +11,7 @@ export interface Settings {
   baseUrl?: string;
   autoSubmit: boolean;
   browserChannel: "chrome" | "msedge" | "chromium";
+  background: boolean;
 }
 
 export interface Profile {

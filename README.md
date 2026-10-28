@@ -213,5 +213,6 @@ scripts/demo-greenhouse.ts
 
 - **Supported forms.** Built and tested against Greenhouse forms. Lever, Ashby, Workable and Recruitee use the same generic reader and filler, but each site has quirks. Watch the first few runs and use **Fill again** if something was missed.
 - **Login-only systems** (Workday, iCIMS, Taleo, LinkedIn Easy Apply) always go to **Do it yourself**.
+- **Background mode.** Settings → "Work in the background" fills forms with no window; you review the screenshot and answers in the app, then press Submit.
 - **Bundled browser.** Playwright's bundled Chromium doesn't run on macOS 13, so JobPilot drives your installed Chrome by default. It uses a separate profile, so your normal browsing data is untouched.
 - **Fit scores are a guide.** They come from your AI. Check the "why" line.

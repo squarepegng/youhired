@@ -93,7 +93,7 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
           <span className="faint">· via {ctx.state.sources[job.source] ?? job.source}</span>
         </div>
 
-        <NextStep job={job} busy={busy} apply={apply} submit={submit} setStatus={setStatus} answers={answers} setAnswers={setAnswers} saveAnswers={saveAnswers} pendingDone={pendingDone} />
+        <NextStep background={!!ctx.state.settings.background} job={job} busy={busy} apply={apply} submit={submit} setStatus={setStatus} answers={answers} setAnswers={setAnswers} saveAnswers={saveAnswers} pendingDone={pendingDone} />
 
         <dl className="props">
           <dt>
@@ -218,6 +218,7 @@ function sourceLabel(s: string): string {
 }
 
 function NextStep(p: {
+  background: boolean;
   job: Job;
   busy: boolean;
   apply: () => void;
@@ -246,7 +247,7 @@ function NextStep(p: {
         <div className="h">
           <LoaderCircle size={15} className="spin" /> Working on the application…
         </div>
-        <p>Filling the form in the JobPilot browser window. Watch the activity below. It stops before submitting.</p>
+        <p>{p.background ? "Filling the form in the background." : "Filling the form in the JobPilot browser window."} Watch the activity below. It stops before submitting unless auto-submit is on.</p>
       </div>
     );
 
@@ -306,7 +307,9 @@ function NextStep(p: {
           </div>
           <p>
             {job.hasSession
-              ? "The filled form is open in the JobPilot browser window. Change anything you like there, then submit."
+              ? p.background
+                ? "Filled in the background. Check the answers and screenshot below, then submit."
+                : "The filled form is open in the JobPilot browser window. Change anything you like there, then submit."
               : "The browser window for this form was closed. Fill it again to review and submit."}
             {(job.pending?.length ?? 0) > 0 && ` Still empty: ${job.pending!.map((x) => x.label).join("; ")}.`}
           </p>

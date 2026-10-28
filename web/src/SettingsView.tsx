@@ -168,6 +168,13 @@ export function SettingsView({ ctx }: { ctx: Ctx }) {
             </div>
             <div className="srow">
               <div className="l">
+                <b>Work in the background</b>
+                <span>On: no browser window pops up. JobPilot fills forms out of sight and you review them from the screenshot here, then press Submit. Off: you watch it fill each form in a Chrome window.</span>
+              </div>
+              <Switch label="Work in the background" checked={!!s.background} onChange={(v) => save({ background: v })} />
+            </div>
+            <div className="srow">
+              <div className="l">
                 <b>Browser</b>
                 <span>JobPilot opens its own window with a separate profile. It never sees your everyday browser, passwords or cookies.</span>
               </div>

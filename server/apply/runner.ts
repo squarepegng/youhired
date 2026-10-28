@@ -94,7 +94,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   if (blocker.kind !== "none") {
     log(id, blocker.detail);
     sessions.set(id, { page, mapped: [], values: new Map(), files: { cv } });
-    return save(job, "do_it_yourself", `${blocker.detail} The page is open in the JobPilot browser for you.`);
+    return save(job, "do_it_yourself", `${blocker.detail} ${opts.headless ? "Open the link to finish it yourself." : "The page is open in the JobPilot browser for you."}`);
   }
 
   let fields = await readForm(page);
@@ -109,7 +109,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
       blocker = await detectBlocker(page);
       if (blocker.kind !== "none") {
         sessions.set(id, { page, mapped: [], values: new Map(), files: { cv } });
-        return save(job, "do_it_yourself", `${blocker.detail} The page is open in the JobPilot browser for you.`);
+        return save(job, "do_it_yourself", `${blocker.detail} ${opts.headless ? "Open the link to finish it yourself." : "The page is open in the JobPilot browser for you."}`);
       }
       fields = await readForm(page);
     }
@@ -188,7 +188,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   const flagged = job.flags.includes("hidden-instructions") || mapped.some((m) => /consent/i.test(m.note ?? ""));
   if (opts.autoSubmit && !opts.dryRun && !flagged) return submit(id);
   log(id, opts.dryRun ? "Demo mode: filled but not submitted." : "Filled. Waiting for your review.");
-  return save(job, "filled", opts.dryRun ? "Demo: filled, not submitted" : "Ready for your review in the browser window");
+  return save(job, "filled", opts.dryRun ? "Demo: filled, not submitted" : opts.headless ? "Filled in the background. Check the screenshot, then submit." : "Ready for your review in the browser window");
 }
 
 export function shotPath(id: string): string {

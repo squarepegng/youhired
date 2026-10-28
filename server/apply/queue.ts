@@ -56,7 +56,7 @@ async function work(): Promise<void> {
     const { settings } = load();
     logs.set(id, ["Starting…"]);
     try {
-      await prepare(id, getLLM(), { autoSubmit: settings.autoSubmit, channel: settings.browserChannel });
+      await prepare(id, getLLM(), { autoSubmit: settings.autoSubmit, channel: settings.browserChannel, headless: settings.background });
     } catch (e) {
       logs.get(id)?.push(`Stopped: ${(e as Error).message}`);
       setStatus(id, "error", (e as Error).message);

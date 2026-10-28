@@ -6,6 +6,7 @@ import { DATA_DIR } from "../store.js";
 import type { FormField } from "./mapper.js";
 
 let ctx: BrowserContext | null = null;
+let ctxHeadless = false;
 
 /**
  * A visible browser with its own profile folder (data/browser-profile), separate from your
@@ -13,7 +14,13 @@ let ctx: BrowserContext | null = null;
  * doesn't run on macOS 13), falling back to Edge or bundled Chromium.
  */
 export async function getContext(channel: "chrome" | "msedge" | "chromium" = "chrome", headless = false): Promise<BrowserContext> {
+  if (ctx && ctxHeadless !== headless) {
+    // Switched between visible and background: reopen the browser in the new mode.
+    await ctx.close().catch(() => {});
+    ctx = null;
+  }
   if (ctx) return ctx;
+  ctxHeadless = headless;
   const dir = path.join(DATA_DIR, "browser-profile");
   fs.mkdirSync(dir, { recursive: true });
   const order = [channel, ...(["chrome", "msedge", "chromium"] as const).filter((c) => c !== channel)];
