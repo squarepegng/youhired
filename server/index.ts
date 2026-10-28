@@ -133,7 +133,10 @@ let applying: string | null = null;
 app.post("/api/jobs/:id/apply", (req, res) => {
   const id = req.params.id;
   if (applying) return res.status(409).json({ error: "Already working on another application. Wait for it to finish." });
-  const { settings } = load();
+  const { settings, profile, jobs } = load();
+  if (!jobs[id]) return res.status(404).json({ error: "Job not found" });
+  if (!profile.cvFileName || !fs.existsSync(path.join(DATA_DIR, "cv", profile.cvFileName))) return res.status(400).json({ error: "Upload your CV in Profile first." });
+  if (!profile.confirmed) return res.status(400).json({ error: "Confirm your profile facts first (Profile → Confirm facts)." });
   applying = id;
   logs.set(id, ["Starting…"]);
   prepare(id, llmOrNull(), { autoSubmit: settings.autoSubmit, channel: settings.browserChannel })
