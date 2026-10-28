@@ -1,3 +1,4 @@
+import { alreadyApplied, appliedReason } from "./dedupe.js";
 import { checkLocation } from "./eligibility.js";
 import { UNTRUSTED_RULE, detectAiScreening, detectInjection, isNeverApply, untrusted } from "./guardrails.js";
 import type { LLM } from "./providers/types.js";
@@ -175,6 +176,8 @@ export async function runSearch(llm: LLM | null): Promise<void> {
       if (!t.keep) continue;
       const { hiddenText: _h, ...rest } = r;
       const job: Job = { ...rest, flags: t.flags, eligibility: t.eligibility, status: t.status ?? "found", statusReason: t.reason, statusDate: now, foundAt: now };
+      const dup = alreadyApplied(job, Object.values(load().jobs));
+      if (dup) Object.assign(job, { status: "skipped", statusReason: appliedReason(dup) });
       if (job.status === "found") toScore.push(job);
       else progress.skipped += job.status === "skipped" ? 1 : 0;
       update((s) => void (s.jobs[job.id] = job));

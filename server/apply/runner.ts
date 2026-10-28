@@ -6,6 +6,7 @@ import path from "node:path";
 import type { Page } from "playwright";
 import { detectAiScreening, detectInjection, isJobBoardUrl, isNeverApply } from "../guardrails.js";
 import type { LLM } from "../providers/types.js";
+import { alreadyApplied, appliedReason } from "../dedupe.js";
 import { checkLocation } from "../eligibility.js";
 import { connectedHosts } from "../sites.js";
 import { findEmployerForm } from "../sources/index.js";
@@ -67,6 +68,9 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   logs.set(id, []);
 
   // Guardrails that need no browser
+  if (job.status === "applied") return job;
+  const dup = alreadyApplied(job, Object.values(store.jobs));
+  if (dup) return save(job, "skipped", appliedReason(dup));
   if (isNeverApply(job.company, p.neverApply)) return save(job, "skipped", "On your never-apply list");
   if (!p.confirmed && !opts.profileOverride) throw new Error("Confirm your profile facts first (Profile → Confirm).");
   const cv = opts.cvOverride ?? cvPath();
@@ -86,6 +90,8 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
     const hit = await findEmployerForm(job.company, job.title, job.url).catch(() => null);
     if (hit) {
       log(id, `Found it on ${hit.ats}: ${hit.applyUrl}`);
+      const dup2 = alreadyApplied({ ...job, applyUrl: hit.applyUrl, url: hit.url }, Object.values(load().jobs));
+      if (dup2) return save(job, "skipped", appliedReason(dup2));
       const own = checkLocation(hit.location, p, "");
       if (own.verdict === "ineligible" && !job.flags.includes("apply-anyway")) {
         job.eligibility = { ...own, reason: `${own.reason} (the employer's own posting; the job board said "${job.location}")` };

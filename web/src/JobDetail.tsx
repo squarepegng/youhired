@@ -78,7 +78,8 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
       setBusy(true);
     }, "Answers saved. Continuing the application…");
 
-  const pendingDone = (job.pending ?? []).every((p) => (answers[p.label] ?? "").trim());
+  // Every question answered, and no [placeholders] left from a draft.
+  const pendingDone = (job.pending ?? []).every((p) => (answers[p.label] ?? "").trim() && !/\[[^\]]{2,}\]/.test(answers[p.label] ?? ""));
 
   return (
     <aside className="detail" aria-label={`${job.title} at ${job.company}`}>
@@ -321,6 +322,7 @@ function NextStep(p: {
                 {q.draft && p.answers[q.label] === q.draft && <span className="draftchip">AI draft</span>}
               </label>
               {q.hint && <div className="hint">{q.hint}</div>}
+              {/\[[^\]]{2,}\]/.test(p.answers[q.label] ?? "") && <div className="hint" style={{ color: "var(--amber)" }}>Replace the [bracketed] parts with your own details before approving.</div>}
               {q.options?.length ? (
                 <select id={q.fieldId} value={p.answers[q.label] ?? ""} onChange={(e) => p.setAnswers({ ...p.answers, [q.label]: e.target.value })}>
                   <option value="">Choose…</option>

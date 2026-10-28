@@ -73,18 +73,29 @@ function describe(m: Mapped): string {
   return JSON.stringify({ id: f.id, question: f.label, type: f.kind, required: f.required, options: f.options.length ? f.options : undefined });
 }
 
+// Drafts are reviewed by the candidate before anything is sent, so the model may draft personal-experience
+// answers from the documents, marking anything only the candidate can supply in [square brackets].
+const DRAFT_RULE = [
+  "DRAFT MODE: the candidate will read and approve every answer before it is sent.",
+  "For open questions about their experience or views, set can_answer=true and write the best draft you can from their documents (CV, LinkedIn, portfolio), in their voice.",
+  "Where the answer needs something only they can provide (a link, a chat transcript, a personal story or number not in the documents), put a short placeholder in square brackets, e.g. [paste the Claude chat link] or [add a personal example].",
+  "Still never invent facts presented as true: no made-up metrics, employers, tools or events outside brackets. Keep character limits stated in the question.",
+  "Questions about salary, current pay, location, work authorisation, age or demographics: can_answer=false.",
+].join("\n");
+
 export async function writeAnswers(
   llm: LLM,
   p: Profile,
   job: Pick<Job, "title" | "company" | "description">,
   fields: Mapped[],
   feedback = "",
+  draft = false,
 ): Promise<{ answers: AiAnswer[]; coverNote: string }> {
   const res = await llm.json<{ answers: AiAnswer[]; cover_note: string }>({
     schemaName: "application_answers",
     schema: SCHEMA,
     maxTokens: 12000,
-    system: SYSTEM,
+    system: draft ? `${SYSTEM}\n\n${DRAFT_RULE}` : SYSTEM,
     messages: [
       {
         role: "user",
@@ -113,14 +124,14 @@ export interface CheckedAnswers {
 }
 
 /** Write, check, rewrite once if needed. Anything still failing goes to the user. */
-export async function answerWithChecks(llm: LLM, p: Profile, job: Job, fields: Mapped[], pageUntrusted = ""): Promise<CheckedAnswers> {
+export async function answerWithChecks(llm: LLM, p: Profile, job: Job, fields: Mapped[], pageUntrusted = "", draft = false): Promise<CheckedAnswers> {
   const truth = `${groundTruth(p)}\n${job.description}\n${job.title}\n${job.company}`;
   const planted = detectInjection(`${job.description}\n${pageUntrusted}`).flatMap((f) => f.plantedWords);
   const out: CheckedAnswers = { answers: new Map(), needUser: new Map(), coverNote: "", warnings: [] };
   let pending = fields;
   let feedback = "";
   for (let round = 0; round < 2 && pending.length; round++) {
-    const { answers, coverNote } = await writeAnswers(llm, p, job, pending, feedback);
+    const { answers, coverNote } = await writeAnswers(llm, p, job, pending, feedback, draft);
     const byId = new Map(answers.map((a) => [a.id, a]));
     const problems: string[] = [];
     const retry: Mapped[] = [];
@@ -170,7 +181,7 @@ export async function draftPending(llm: LLM, p: Profile, job: Job, pending: { fi
   if (!open.length) return;
   const fields: Mapped[] = open.map((q) => ({ field: { id: q.fieldId, frame: 0, kind: "textarea", label: q.label, name: "", required: true, options: [], value: "" }, value: null, source: "ai", need: "ai" }));
   try {
-    const res = await answerWithChecks(llm, p, job, fields);
+    const res = await answerWithChecks(llm, p, job, fields, "", true);
     for (const q of open) {
       const a = res.answers.get(q.fieldId);
       if (a) q.draft = a.value;

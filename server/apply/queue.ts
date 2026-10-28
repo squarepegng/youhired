@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { LLM } from "../providers/types.js";
+import { alreadyApplied } from "../dedupe.js";
 import { DATA_DIR, load, setStatus } from "../store.js";
 import { logs, prepare } from "./runner.js";
 
@@ -37,7 +38,7 @@ export function enqueue(ids: string[], override?: { headless?: boolean; waitForH
   const skipped: string[] = [];
   for (const id of ids) {
     const j = jobs[id];
-    if (!j || j.status === "applied" || j.status === "skipped" || queue.includes(id) || current === id) {
+    if (!j || j.status === "applied" || (j.status === "skipped" && !j.flags.includes("apply-anyway")) || queue.includes(id) || current === id || alreadyApplied(j, Object.values(jobs))) {
       skipped.push(id);
       continue;
     }
