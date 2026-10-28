@@ -3,7 +3,7 @@ import path from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import { applyBlocker, configureQueue, currentApply, enqueue, queued } from "./apply/queue.js";
-import { closeSession, hasSession, logs, shotPath, submit } from "./apply/runner.js";
+import { closeSession, finishHandoff, hasSession, logs, shotPath, submit } from "./apply/runner.js";
 import { activity, chat, configureAssistant, resolveAction } from "./assistant.js";
 import { cvToText, extractProfile, mergeExtract } from "./cv.js";
 import { detectAts, hostNeedsLogin } from "./guardrails.js";
@@ -151,6 +151,18 @@ app.post("/api/apply-batch", (req, res) => {
   const block = applyBlocker();
   if (block) return res.status(400).json({ error: block });
   res.json(enqueue(ids));
+});
+
+/** Finish a job that needs one human step (a CAPTCHA): show the window, or reopen it filled, and wait. */
+app.post("/api/jobs/:id/finish", (req, res) => {
+  const id = String(req.params.id);
+  if (!load().jobs[id]) return res.status(404).json({ error: "Job not found" });
+  if (finishHandoff(id) === "watching") return res.json({ ok: true, mode: "watching" });
+  const block = applyBlocker();
+  if (block) return res.status(400).json({ error: block });
+  // Reopen in a visible window; you've asked to finish it, so it submits once the check is passed.
+  enqueue([id], { headless: false, waitForHuman: true, autoSubmit: true });
+  res.json({ ok: true, mode: "reopen" });
 });
 
 app.post("/api/jobs/:id/submit", wrap(async (req, res) => {

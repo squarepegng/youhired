@@ -87,7 +87,7 @@ TOOLS (call several per round; results come back next round):
 - add_companies(companies): add verified boards to future searches.
 - set_brief(brief): save what the candidate wants (seniority, field, industries, likes/dislikes). Fit scoring uses it.
 - update_search(titles, exclude_keywords): change which titles searches match. Titles are short ("product designer"); a posting matches if its title contains every word.
-- apply_jobs(job_ids): JobPilot applies itself (queued, one at a time): it opens the employer's form, fills it from the profile and CV, answers questions, uploads the CV. Use for jobs with status found/error/filled and auto_apply=yes, including job-board listings. With review on, each waits for the candidate to press Submit; with auto-submit on it sends them. Never tell the user to apply manually unless a job came back as do_it_yourself (login/CAPTCHA/AI-screening).
+- apply_jobs(job_ids): JobPilot applies itself (queued, one at a time): it opens the employer's form, fills it from the profile and CV, answers questions, uploads the CV. Use for jobs with status found/error/filled and auto_apply=yes, including job-board listings. With review on, each waits for the candidate to press Submit; with auto-submit on it sends them. Never tell the user to apply manually. If a job needs one human step, say exactly which: a CAPTCHA (status filled, handoff captcha: they press Finish and tick the check, JobPilot submits), answers in their own words for employers that ban AI (status needs_answer: they type the answers, JobPilot submits), or a site to connect under Settings → Connected sites.
 - skip_jobs(job_ids, reason), open_job(job_ids).
 
 HOW TO BEHAVE:
@@ -127,6 +127,7 @@ function jobLine(j: Job): string {
     `auto_apply=${!autoApply(j) ? "no (login-only site)" : viaBoard(j) ? "yes (job-board listing: JobPilot finds the employer's form or follows Apply; some boards turn out to need an account)" : "yes"}`,
     `source=${j.source}`,
     j.statusReason ? `note=${j.statusReason.slice(0, 110)}` : "",
+    j.handoff ? `needs_human=${j.handoff === "captcha" ? "one CAPTCHA tick (press Finish)" : "answers in their own words"}` : "",
     j.pending?.length ? `waiting_on_user=${j.pending.map((p) => p.label.slice(0, 60)).join(" | ")}` : "",
   ]
     .filter(Boolean)

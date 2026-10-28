@@ -86,6 +86,7 @@ export interface Job {
   answers?: { label: string; value: string; source: string }[];
   pending?: { fieldId: string; label: string; required: boolean; options?: string[]; hint?: string }[];
   coverNote?: string;
+  handoff?: "captcha" | "own_words";
   hasSession?: boolean;
   working?: boolean;
 }

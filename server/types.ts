@@ -133,6 +133,7 @@ export interface Job {
   answers?: { label: string; value: string; source: string }[];
   pending?: PendingQuestion[];
   coverNote?: string;
+  handoff?: "captcha" | "own_words"; // the one thing JobPilot needs a human for on this job
 }
 
 export interface ChatAction {

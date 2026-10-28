@@ -7,6 +7,7 @@ import { DATA_DIR, load, setStatus } from "../store.js";
 import { logs, prepare } from "./runner.js";
 
 const queue: string[] = [];
+const overrides = new Map<string, { headless?: boolean; waitForHuman?: boolean; autoSubmit?: boolean }>();
 let current: string | null = null;
 let getLLM: () => LLM | null = () => null;
 
@@ -30,7 +31,7 @@ export function applyBlocker(): string | null {
   return null;
 }
 
-export function enqueue(ids: string[]): { added: string[]; skipped: string[] } {
+export function enqueue(ids: string[], override?: { headless?: boolean; waitForHuman?: boolean; autoSubmit?: boolean }): { added: string[]; skipped: string[] } {
   const jobs = load().jobs;
   const added: string[] = [];
   const skipped: string[] = [];
@@ -41,6 +42,7 @@ export function enqueue(ids: string[]): { added: string[]; skipped: string[] } {
       continue;
     }
     queue.push(id);
+    if (override) overrides.set(id, override);
     logs.set(id, ["Waiting in the queue…"]);
     added.push(id);
   }
@@ -56,7 +58,9 @@ async function work(): Promise<void> {
     const { settings } = load();
     logs.set(id, ["Starting…"]);
     try {
-      await prepare(id, getLLM(), { autoSubmit: settings.autoSubmit, channel: settings.browserChannel, headless: settings.background });
+      const o = overrides.get(id) ?? {};
+      overrides.delete(id);
+      await prepare(id, getLLM(), { autoSubmit: o.autoSubmit ?? settings.autoSubmit, channel: settings.browserChannel, headless: o.headless ?? settings.background, waitForHuman: o.waitForHuman });
     } catch (e) {
       logs.get(id)?.push(`Stopped: ${(e as Error).message}`);
       setStatus(id, "error", (e as Error).message);

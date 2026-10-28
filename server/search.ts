@@ -117,7 +117,8 @@ export function triage(raw: RawJob, prefs: SearchPrefs, p: Profile, now = Date.n
   const screening = detectAiScreening(raw.description);
   if (screening) {
     flags.push("ai-screening");
-    return { keep: true, status: "do_it_yourself", reason: `The posting says it screens out AI-assisted applications: "${screening.slice(0, 160)}"`, eligibility, flags };
+    // Still applied to: JobPilot fills your details and you write the open answers yourself.
+    return { keep: true, status: "found", reason: `This employer wants answers in your own words: "${screening.slice(0, 160)}"`, eligibility, flags };
   }
   if (raw.needsLogin) return { keep: true, status: "do_it_yourself", reason: "This site needs an account to apply. JobPilot never creates accounts or signs in.", eligibility, flags };
   return { keep: true, status: "found", eligibility, flags };

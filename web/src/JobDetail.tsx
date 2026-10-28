@@ -59,6 +59,11 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
       setBusy(true);
     }, "Opening the application in the browser…");
   const submit = () => run(() => api(`/api/jobs/${id}/submit`, {}));
+  const finish = () =>
+    run(async () => {
+      const r = await api<{ mode: string }>(`/api/jobs/${id}/finish`, {});
+      setBusy(r.mode === "reopen");
+    }, "A JobPilot window is opening with your filled form. Tick the check there; JobPilot submits the rest.");
   const setStatus = (status: Job["status"], reason: string, ok: string) => run(() => api(`/api/jobs/${id}/status`, { status, reason }), ok);
   const saveAnswers = () =>
     run(async () => {
@@ -93,7 +98,7 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
           <span className="faint">· via {ctx.state.sources[job.source] ?? job.source}</span>
         </div>
 
-        <NextStep background={!!ctx.state.settings.background} job={job} busy={busy} apply={apply} submit={submit} setStatus={setStatus} answers={answers} setAnswers={setAnswers} saveAnswers={saveAnswers} pendingDone={pendingDone} />
+        <NextStep background={!!ctx.state.settings.background} job={job} busy={busy} apply={apply} submit={submit} finish={finish} setStatus={setStatus} answers={answers} setAnswers={setAnswers} saveAnswers={saveAnswers} pendingDone={pendingDone} />
 
         <dl className="props">
           <dt>
@@ -223,6 +228,7 @@ function NextStep(p: {
   busy: boolean;
   apply: () => void;
   submit: () => void;
+  finish: () => void;
   setStatus: (s: Job["status"], reason: string, ok: string) => void;
   answers: Record<string, string>;
   setAnswers: (a: Record<string, string>) => void;
@@ -240,6 +246,25 @@ function NextStep(p: {
       I applied myself
     </button>
   );
+
+  if (job.handoff === "captcha" && job.status === "filled")
+    return (
+      <div className="next accent">
+        <div className="h">
+          <ShieldCheck size={15} /> One quick check left
+        </div>
+        <p>
+          Everything is filled in. The site wants a human to tick a check (a CAPTCHA), which JobPilot never fakes. Press <b>Finish</b>: a JobPilot window shows the filled form, you tick the check, and JobPilot submits and confirms. About 10 seconds of your time.
+        </p>
+        <div className="actions">
+          <button className="btn primary" onClick={p.finish}>
+            Finish
+          </button>
+          {mine}
+          {skip}
+        </div>
+      </div>
+    );
 
   if (busy)
     return (
@@ -274,7 +299,11 @@ function NextStep(p: {
           <div className="h">
             <CircleAlert size={15} color="var(--amber)" /> {job.pending?.length ?? 0} question{(job.pending?.length ?? 0) === 1 ? "" : "s"} only you can answer
           </div>
-          <p>JobPilot never guesses. Your answers are saved to your profile and reused on future forms.</p>
+          <p>
+            {job.handoff === "own_words"
+              ? "This employer doesn't accept AI-written answers, so JobPilot filled your details and left these for you. Write them in your own words; JobPilot puts them in the form and submits."
+              : "JobPilot never guesses. Your answers are saved to your profile and reused on future forms."}
+          </p>
           {(job.pending ?? []).map((q) => (
             <div className="question" key={q.fieldId}>
               <label htmlFor={q.fieldId}>{q.label}</label>
@@ -334,7 +363,10 @@ function NextStep(p: {
           </div>
           <p>{job.statusReason}</p>
           <div className="actions">
-            <a className="btn primary" href={job.applyUrl} target="_blank" rel="noreferrer">
+            <button className="btn primary" onClick={p.apply}>
+              Try again
+            </button>
+            <a className="btn" href={job.applyUrl} target="_blank" rel="noreferrer">
               Open application <ArrowUpRight size={13} />
             </a>
             {mine}

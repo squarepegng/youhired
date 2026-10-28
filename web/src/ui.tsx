@@ -5,7 +5,7 @@ import type { Job, JobStatus } from "./types";
 // ── Status ─────────────────────────────────────────────
 export const STATUS: Record<JobStatus, { label: string; color: string; hint: string }> = {
   needs_answer: { label: "Needs your answer", color: "var(--amber)", hint: "Questions only you can answer" },
-  filled: { label: "Ready to submit", color: "var(--violet)", hint: "Filled in the browser, check and submit" },
+  filled: { label: "Ready to submit", color: "var(--violet)", hint: "Filled: submit, or one quick check left" },
   found: { label: "To apply", color: "var(--blue)", hint: "Eligible matches waiting for you" },
   do_it_yourself: { label: "Do it yourself", color: "var(--orange)", hint: "Login, CAPTCHA or no AI allowed" },
   error: { label: "Problem", color: "var(--red)", hint: "Something went wrong" },

@@ -61,6 +61,10 @@ export async function getContext(channel: "chrome" | "msedge" | "chromium" = "ch
   throw new Error(`Couldn't open a browser. Install Google Chrome, or run "npx playwright install chromium". (${(lastErr as Error)?.message?.split("\n")[0]})`);
 }
 
+export function isHeadless(): boolean {
+  return !!ctx && ctxHeadless;
+}
+
 export async function closeBrowser(): Promise<void> {
   await ctx?.close().catch(() => {});
   ctx = null;

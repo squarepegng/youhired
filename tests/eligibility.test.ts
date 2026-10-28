@@ -82,9 +82,9 @@ describe("triage", () => {
     expect(t.reason).toMatch(/united states/i);
   });
   it("honours the never-apply list", () => expect(triage(raw({ company: "Evil Corp, Inc." }), prefs, profile).status).toBe("skipped"));
-  it("sends AI-screening postings to do-it-yourself", () => {
+  it("flags AI-screening postings for own-words answers", () => {
     const t = triage(raw({ description: "Note: applications generated with AI will be automatically rejected." }), prefs, profile);
-    expect(t.status).toBe("do_it_yourself");
+    expect(t.status).toBe("found"); // applied to with your own answers
     expect(t.flags).toContain("ai-screening");
   });
   it("flags hidden instructions to AI", () => {

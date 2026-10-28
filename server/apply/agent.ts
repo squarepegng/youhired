@@ -83,11 +83,12 @@ const SCHEMA = {
 };
 
 export interface AgentResult {
-  outcome: "ready_to_submit" | "submitted" | "blocked" | "need_user" | "gave_up";
+  outcome: "ready_to_submit" | "submitted" | "blocked" | "need_user" | "gave_up" | "captcha";
   reason: string;
   questions: { label: string; options: string[] }[];
   answers: { label: string; value: string; source: string }[];
   page: Page;
+  ownWords: boolean; // switched to "your own words" because the employer bans AI-written answers
 }
 
 function factsSheet(p: Profile): string {
@@ -194,6 +195,7 @@ export async function runAgent(opts: {
   log: (m: string) => void;
   hint?: string;
   maxSteps?: number;
+  ownWords?: boolean; // employer bans AI-written answers: fill facts only, collect open questions for the candidate
 }): Promise<AgentResult> {
   const { llm, job, profile: p, files, log } = opts;
   let page = opts.page;
@@ -202,8 +204,12 @@ export async function runAgent(opts: {
   const history: string[] = [];
   let lastSig = "";
   let lastField = "";
+  let failures = 0;
+  page.setDefaultTimeout(10_000);
+  const ownWordsQs: { label: string; options: string[] }[] = [];
+  let ownWords = !!opts.ownWords;
   let sameCount = 0;
-  const done = (outcome: AgentResult["outcome"], reason: string, questions: AgentResult["questions"] = []): AgentResult => ({ outcome, reason, questions, answers, page });
+  const done = (outcome: AgentResult["outcome"], reason: string, questions: AgentResult["questions"] = []): AgentResult => ({ outcome, reason, questions, answers, page, ownWords });
 
   // New tabs (target=_blank "Apply" links) become the page we work on.
   const ctx = page.context();
@@ -225,6 +231,7 @@ export async function runAgent(opts: {
         return done("blocked", `The site's robots.txt asks automated tools not to open ${blocked.replace(/\?.*/, "")}, so JobPilot stopped there.`);
       }
       const b = await detectBlocker(page);
+      if (b.kind === "captcha") return done("captcha", b.detail);
       if (b.kind !== "none") return done("blocked", b.detail);
       if (await looksSubmitted(page)) return done("submitted", "Confirmation shown");
 
@@ -234,7 +241,10 @@ export async function runAgent(opts: {
         continue;
       }
       const screening = detectAiScreening(snap.text);
-      if (screening) return done("blocked", `The page says: "${screening.slice(0, 200)}"`);
+      if (screening && !ownWords) {
+        ownWords = true;
+        log(`This employer doesn't accept AI-written answers ("${screening.slice(0, 100)}"). Filling your details only; the open answers will be yours.`);
+      }
       const planted = detectInjection(snap.text).flatMap((f) => f.plantedWords);
 
       const sig = `${snap.url}|${snap.elements.map((e) => `${e.id}${e.value ?? ""}${e.checked ?? ""}${e.file ?? ""}`).join(",")}`;
@@ -258,6 +268,7 @@ export async function runAgent(opts: {
               `CV (trusted):\n<cv>\n${p.cvText.slice(0, 12000)}\n</cv>`,
               p.savedAnswers.length ? `Candidate's own answers (trusted):\n${p.savedAnswers.map((s) => `- ${s.question}: ${s.answer}`).join("\n")}` : "",
               opts.hint ?? "",
+              ownWords ? "IMPORTANT: this employer does not accept AI-written answers. Fill only factual fields (name, contact, location, links, CV upload, yes/no facts). For any open question, still choose type with an empty text: JobPilot will hand it to the candidate. Then continue." : "",
               connectedHosts().length ? `The candidate is already signed in (their own session) on: ${connectedHosts().join(", ")}. On those sites you can use the signed-in apply flow. Anywhere else that asks to sign in: report blocked.` : "",
               history.length ? `Your previous steps:\n${history.slice(-12).join("\n")}` : "",
               `Step ${step}. Current page:\n${describe(snap)}`,
@@ -275,17 +286,23 @@ export async function runAgent(opts: {
       log(`${decision.thought}  →  ${say}`);
       let note = "";
 
+      try {
       switch (decision.action) {
         case "ready_to_submit":
+          if (ownWordsQs.length) return done("need_user", "This employer wants answers in your own words", ownWordsQs);
           return done("ready_to_submit", decision.reason || "All fields filled");
         case "submitted":
           if (await looksSubmitted(page)) return done("submitted", decision.reason || "Confirmation shown");
           note = "No confirmation is visible yet. Check for errors or a final submit button.";
           break;
         case "blocked":
+          if (/captcha|human|robot|recaptcha|hcaptcha|turnstile|verification challenge/i.test(`${decision.reason} ${decision.thought}`)) return done("captcha", decision.reason || "A human check appeared");
           return done("blocked", decision.reason || "The site blocked automated applying");
-        case "need_user":
-          return done("need_user", decision.reason || "Questions only you can answer", decision.questions);
+        case "need_user": {
+          const qs = [...ownWordsQs, ...(decision.questions ?? []).filter((q) => !ownWordsQs.some((o) => o.label === q.label))];
+          if (!qs.length && el) qs.push({ label: el.label, options: el.options ?? [] });
+          return done("need_user", ownWordsQs.length ? "Answers in your own words, plus anything only you know" : decision.reason || "Questions only you can answer", qs);
+        }
         case "scroll_down":
           await page.mouse.wheel(0, 700);
           break;
@@ -350,11 +367,16 @@ export async function runAgent(opts: {
           let value = decision.text;
           let source = "ai";
           const fact = factFor(el, p, job);
-          if (fact?.mustAsk) return done("need_user", "A required question only you can answer", [{ label: el.label, options: el.options ?? [] }]);
+          if (fact?.mustAsk) return done("need_user", "A required question only you can answer", [...ownWordsQs, { label: el.label, options: el.options ?? [] }]);
           if (fact?.value != null) {
             if (fact.value !== value) log(`Used your profile instead of the model's text for "${el.label.slice(0, 50)}"`);
             value = fact.value;
             source = fact.source;
+          } else if (ownWords) {
+            // Employer bans AI-written answers: never type model text; collect the question for the candidate.
+            if (!ownWordsQs.some((q) => q.label === el.label)) ownWordsQs.push({ label: el.label, options: el.options ?? [] });
+            note = "Skipped: the candidate writes this answer themselves. Leave it and continue with the other fields.";
+            break;
           } else if (value.length > 25) {
             const bad = [...inventedNumbers(value, truth), ...containsPlantedWord(value, planted)];
             if (bad.length) {
@@ -383,6 +405,13 @@ export async function runAgent(opts: {
           lastField = el.label;
           break;
         }
+      }
+      } catch (e) {
+        // One stubborn element shouldn't end the application: tell the model and let it try another way.
+        failures++;
+        note = `That didn't work (${(e as Error).message.split("\n")[0].slice(0, 120)}). The page may have changed; look again and try a different element or approach.`;
+        log(`Step failed, retrying another way: ${(e as Error).message.split("\n")[0].slice(0, 100)}`);
+        if (failures >= 6) return done("gave_up", "Too many steps failed on this page.");
       }
       history.push(`${step}. ${say}${note ? `  (${note})` : ""}`);
     }

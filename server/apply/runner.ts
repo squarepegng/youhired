@@ -13,7 +13,7 @@ import { DATA_DIR, cvPath, load, update } from "../store.js";
 import type { Job, PendingQuestion } from "../types.js";
 import { type AgentResult, runAgent } from "./agent.js";
 import { answerWithChecks } from "./answers.js";
-import { detectBlocker, getContext, hiddenText, pageText, readForm } from "./browser.js";
+import { detectBlocker, getContext, hiddenText, isHeadless, pageText, readForm } from "./browser.js";
 import { fillField, findSubmit, looksSubmitted, peekComboOptions, visibleErrors } from "./filler.js";
 import { type FormField, type Mapped, mapAll, normQ } from "./mapper.js";
 
@@ -35,6 +35,7 @@ function log(id: string, m: string) {
 }
 
 function save(job: Job, status: Job["status"], reason?: string): Job {
+  if (status !== "filled" && status !== "needs_answer") job.handoff = undefined;
   job.status = status;
   job.statusReason = reason;
   job.statusDate = new Date().toISOString();
@@ -54,6 +55,7 @@ export interface ApplyOptions {
   fillEvenIfPending?: boolean; // demo: fill what we can even if some questions need the user
   profileOverride?: ReturnType<typeof load>["profile"];
   cvOverride?: string;
+  waitForHuman?: boolean; // the user pressed Finish: wait (visible window) for them to pass a CAPTCHA
 }
 
 export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: ApplyOptions): Promise<Job> {
@@ -100,7 +102,8 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
     const host = new URL(job.applyUrl).hostname.replace(/^www\./, "");
     return save(job, "do_it_yourself", `This job is listed on ${host}. Connect your AI in Settings so JobPilot can follow "Apply" to the employer's form, or open the link yourself.`);
   }
-  if (job.flags.includes("ai-screening")) return save(job, "do_it_yourself", job.statusReason);
+  // Employers that ban AI-written answers: JobPilot fills the facts, you write the open answers.
+  let ownWords = job.flags.includes("ai-screening");
 
   const ctx = await getContext(opts.channel, opts.headless);
   const old = sessions.get(id);
@@ -115,8 +118,8 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   const screening = detectAiScreening(text);
   if (screening) {
     job.flags = [...new Set([...job.flags, "ai-screening"])];
-    log(id, "The page says it screens out AI-assisted applications. Leaving this one to you.");
-    return save(job, "do_it_yourself", `The page says: "${screening.slice(0, 200)}"`);
+    ownWords = true;
+    log(id, `This employer doesn't accept AI-written answers ("${screening.slice(0, 120)}"). JobPilot fills your details; the open answers will be yours.`);
   }
   const hidden = await hiddenText(page);
   const injected = detectInjection(`${text}\n${hidden}`);
@@ -125,6 +128,13 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
     log(id, `Ignored instructions aimed at AI on this page: "${injected[0].snippet.slice(0, 120)}"`);
   }
   let blocker = await detectBlocker(page);
+  if (blocker.kind === "captcha") {
+    log(id, blocker.detail);
+    sessions.set(id, { page, mapped: [], values: new Map(), files: { cv } });
+    if (opts.headless || !opts.waitForHuman) return handOffCaptcha(job, opts);
+    if (!(await waitForHuman(job, page))) return handOffCaptcha(job, opts);
+    blocker = await detectBlocker(page);
+  }
   if (blocker.kind !== "none") {
     log(id, blocker.detail);
     sessions.set(id, { page, mapped: [], values: new Map(), files: { cv } });
@@ -133,7 +143,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
 
   if (boardOnly && llm) {
     log(id, "Listed on a job board: following Apply to the employer's form");
-    return finishWithAgent(job, page, llm, p, { cv }, opts);
+    return finishWithAgent(job, page, llm, p, { cv }, opts, ownWords);
   }
 
   let fields = await readForm(page);
@@ -146,6 +156,11 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
       await page.waitForLoadState("domcontentloaded").catch(() => {});
       await sleep(2000);
       blocker = await detectBlocker(page);
+      if (blocker.kind === "captcha") {
+        sessions.set(id, { page, mapped: [], values: new Map(), files: { cv } });
+        if (opts.headless || !opts.waitForHuman || !(await waitForHuman(job, page))) return handOffCaptcha(job, opts);
+        blocker = await detectBlocker(page);
+      }
       if (blocker.kind !== "none") {
         sessions.set(id, { page, mapped: [], values: new Map(), files: { cv } });
         return save(job, "do_it_yourself", `${blocker.detail} ${opts.headless ? "Open the link to finish it yourself." : "The page is open in the JobPilot browser for you."}`);
@@ -157,7 +172,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   if (!isApplication) {
     if (llm) {
       log(id, "No standard form here: the AI agent takes over");
-      return finishWithAgent(job, page, llm, p, { cv }, opts);
+      return finishWithAgent(job, page, llm, p, { cv }, opts, ownWords);
     }
     await page.close().catch(() => {});
     return save(job, "do_it_yourself", "Couldn't find an application form. Connect your AI in Settings so JobPilot can work through custom pages, or open the link yourself.");
@@ -171,8 +186,8 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   const aiFields = mapped.filter((m) => m.need === "ai");
   let coverNote = "";
   if (aiFields.length || mapped.some((m) => m.source === "cover-file")) {
-    if (!llm) {
-      for (const m of aiFields) Object.assign(m, { need: m.field.required ? "user" : undefined, source: "user" });
+    if (!llm || ownWords) {
+      for (const m of aiFields) Object.assign(m, m.field.required ? { need: "user", source: "user", note: ownWords ? "This employer wants this in your own words" : undefined } : { need: undefined, source: "rule", value: null, note: "Optional, left blank" });
     } else {
       log(id, `Writing ${aiFields.length} answers with ${llm.provider}/${llm.model}`);
       const res = await answerWithChecks(llm, p, job, aiFields, hidden);
@@ -195,6 +210,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
     .map((m) => ({ fieldId: m.field.id, label: m.field.label || m.field.name, required: true, options: m.field.options.length ? m.field.options : undefined, hint: m.note && m.note !== m.field.label ? m.note : undefined }));
   job.pending = pending;
   job.answers = summarise(mapped, coverNote);
+  if (ownWords && pending.length) job.handoff = "own_words";
   if (pending.length && !opts.fillEvenIfPending) {
     for (const q of pending) log(id, `Needs your answer: ${q.label}`);
     await page.close().catch(() => {});
@@ -223,7 +239,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   let missing = await refillMissing(id);
   if (missing.length && llm && !pending.length) {
     log(id, `${missing.length} required field(s) still empty: the AI agent will finish them`);
-    const r = await runAgent({ page, llm, job, profile: p, files, autoSubmit: false, log: (m) => log(id, m), maxSteps: 15, hint: `The form is partly filled already. Fill only the remaining required fields: ${missing.map((f) => f.label).join("; ")}. Then answer ready_to_submit.` });
+    const r = await runAgent({ page, llm, job, profile: p, files, autoSubmit: false, ownWords, log: (m) => log(id, m), maxSteps: 15, hint: `The form is partly filled already. Fill only the remaining required fields: ${missing.map((f) => f.label).join("; ")}. Then answer ready_to_submit.` });
     job.answers = [...(job.answers ?? []), ...r.answers];
     if (r.outcome === "need_user") {
       job.pending = r.questions.map((q, i) => ({ fieldId: `agent-${i}`, label: q.label, required: true, options: q.options.length ? q.options : undefined }));
@@ -231,6 +247,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
       sessions.delete(id);
       return save(job, "needs_answer", r.reason);
     }
+    if (r.outcome === "captcha") return humanCheck(job, r.page, opts);
     if (r.outcome === "blocked") return save(job, "do_it_yourself", r.reason);
     missing = await refillMissing(id);
   }
@@ -249,11 +266,13 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
 }
 
 /** Hand the page to the AI agent and turn its outcome into a tracker status. */
-async function finishWithAgent(job: Job, page: Page, llm: LLM, p: ReturnType<typeof load>["profile"], files: { cv: string; cover?: string }, opts: ApplyOptions): Promise<Job> {
+async function finishWithAgent(job: Job, page: Page, llm: LLM, p: ReturnType<typeof load>["profile"], files: { cv: string; cover?: string }, opts: ApplyOptions, ownWords = false): Promise<Job> {
   const id = job.id;
   const auto = opts.autoSubmit && !opts.dryRun;
-  const r: AgentResult = await runAgent({ page, llm, job, profile: p, files, autoSubmit: auto, log: (m) => log(id, m) });
-  job.answers = [...(job.answers ?? []), ...r.answers];
+  const r: AgentResult = await runAgent({ page, llm, job, profile: p, files, autoSubmit: auto, ownWords, log: (m) => log(id, m) });
+  // Latest value per question (re-runs shouldn't duplicate the list).
+  const byLabel = new Map([...(job.answers ?? []), ...r.answers].map((x) => [x.label, x]));
+  job.answers = [...byLabel.values()];
   const pg = r.page;
   sessions.set(id, { page: pg, mapped: [], values: new Map(), files });
   await pg.screenshot({ path: shotPath(id), fullPage: true }).catch(() => {});
@@ -265,7 +284,13 @@ async function finishWithAgent(job: Job, page: Page, llm: LLM, p: ReturnType<typ
       if (auto && !job.flags.includes("hidden-instructions")) return submit(id);
       log(id, "Filled. Waiting for your review.");
       return save(job, "filled", opts.headless ? "Filled in the background. Check the screenshot, then submit." : "Ready for your review in the browser window");
+    case "captcha":
+      return humanCheck(job, pg, opts, () => finishWithAgent(job, pg, llm, p, files, { ...opts, waitForHuman: true }, ownWords));
     case "need_user":
+      if (r.ownWords) {
+        job.handoff = "own_words";
+        job.flags = [...new Set([...job.flags, "ai-screening"])];
+      }
       job.pending = r.questions.map((q, i) => ({ fieldId: `agent-${i}`, label: q.label, required: true, options: q.options.length ? q.options : undefined }));
       for (const q of job.pending) log(id, `Needs your answer: ${q.label}`);
       await pg.close().catch(() => {});
@@ -278,6 +303,81 @@ async function finishWithAgent(job: Job, page: Page, llm: LLM, p: ReturnType<typ
       log(id, `Stopped: ${r.reason}`);
       return save(job, "error", `JobPilot couldn't finish this form: ${r.reason} Try again, or open the link.`);
   }
+}
+
+// ── Human checks (CAPTCHA) ──────────────────────────────────────────────────
+// JobPilot never solves CAPTCHAs. When one appears it keeps the filled form, tells you, and waits:
+// you tick the box in the JobPilot window, it carries on and submits.
+
+const watching = new Set<string>();
+
+/** Wait up to 10 minutes for the user to pass the check in the visible window. */
+async function waitForHuman(job: Job, page: Page): Promise<boolean> {
+  const id = job.id;
+  job.handoff = "captcha";
+  save(job, "filled", "Waiting for you: tick the human check (CAPTCHA) in the JobPilot window. JobPilot carries on by itself.");
+  log(id, "Waiting for you to pass the human check in the JobPilot browser window…");
+  await page.bringToFront().catch(() => {});
+  const end = Date.now() + 10 * 60_000;
+  while (Date.now() < end) {
+    if (page.isClosed()) return false;
+    await sleep(2000);
+    const b = await detectBlocker(page).catch(() => ({ kind: "none" as const, detail: "" }));
+    if (b.kind !== "captcha") {
+      log(id, "Human check passed. Continuing.");
+      return true;
+    }
+  }
+  log(id, "Gave up waiting for the human check.");
+  return false;
+}
+
+function handOffCaptcha(job: Job, opts: Pick<ApplyOptions, "headless">): Job {
+  job.handoff = "captcha";
+  log(job.id, "A human check (CAPTCHA) appeared. JobPilot never solves those; it needs one tap from you.");
+  return save(
+    job,
+    "filled",
+    opts.headless
+      ? "One quick human check (CAPTCHA) left. Press Finish: JobPilot reopens the filled form in a window, you tick the check, it submits."
+      : "One quick human check (CAPTCHA) left. Press Finish and tick it; JobPilot does the rest.",
+  );
+}
+
+/** A CAPTCHA appeared mid-application. Visible window: wait for you, then resume. Background: hand off. */
+async function humanCheck(job: Job, page: Page, opts: Pick<ApplyOptions, "headless">, resume?: () => Promise<Job>): Promise<Job> {
+  const id = job.id;
+  if (!sessions.has(id)) sessions.set(id, { page, mapped: [], values: new Map(), files: { cv: cvPath() } });
+  if (isHeadless() || opts.headless) return handOffCaptcha(job, { headless: true });
+  if (!watching.has(id)) {
+    watching.add(id);
+    // Watch in the background so other applications in the queue keep going.
+    void (async () => {
+      try {
+        if (!(await waitForHuman(job, page))) return void handOffCaptcha(job, { headless: false });
+        if (await looksSubmitted(page)) return void save(job, "applied", "Confirmation page shown");
+        await (resume ? resume() : submit(id));
+      } catch (e) {
+        log(id, `Stopped: ${(e as Error).message}`);
+      } finally {
+        watching.delete(id);
+      }
+    })();
+  }
+  job.handoff = "captcha";
+  return save(job, "filled", "Waiting for you: tick the human check (CAPTCHA) in the JobPilot window. JobPilot carries on by itself.");
+}
+
+/** The user pressed Finish on a job that needs a human check. */
+export function finishHandoff(id: string): "watching" | "reopen" {
+  const s = sessions.get(id);
+  const job = load().jobs[id];
+  if (s && !s.page.isClosed() && !isHeadless() && job) {
+    void s.page.bringToFront().catch(() => {});
+    void humanCheck(job, s.page, { headless: false });
+    return "watching";
+  }
+  return "reopen";
 }
 
 export function shotPath(id: string): string {
@@ -336,6 +436,7 @@ export async function submit(id: string): Promise<Job> {
       return save(job, "applied", "Confirmation page shown");
     }
     const blocker = await detectBlocker(s.page);
+    if (blocker.kind === "captcha") return humanCheck(job, s.page, { headless: isHeadless() } as ApplyOptions);
     if (blocker.kind !== "none") {
       log(id, blocker.detail);
       return save(job, "do_it_yourself", `${blocker.detail} Finish it in the open browser window, then mark it applied.`);
