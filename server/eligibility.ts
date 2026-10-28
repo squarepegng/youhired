@@ -97,7 +97,8 @@ function countriesIn(text: string): string[] {
 }
 
 function regionsIn(text: string): string[] {
-  const t = text.toLowerCase();
+  // "South Africa" is a country, not the Africa region; same for "Central African Republic".
+  const t = text.toLowerCase().replace(/south africa|central african republic/g, " ");
   return REGION_WORDS.filter(([re]) => re.test(t)).map(([, r]) => r);
 }
 

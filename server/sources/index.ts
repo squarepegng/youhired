@@ -44,7 +44,7 @@ export async function greenhouse(board: string): Promise<RawJob[]> {
       title: j.title,
       url: j.absolute_url,
       // The hosted Greenhouse form (no login), even when the posting lives on the company's own site.
-      applyUrl: `https://job-boards.greenhouse.io/${board}/jobs/${j.id}`,
+      applyUrl: `https://job-boards.greenhouse.io/embed/job_app?for=${encodeURIComponent(board)}&token=${j.id}`,
       location: j.location?.name ?? "",
       html: j.content ?? "",
       postedAt: j.first_published || j.updated_at,

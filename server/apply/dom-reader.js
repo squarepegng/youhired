@@ -84,6 +84,8 @@
     if (el.closest("[data-jp-skip], header, nav, footer")) continue;
     if (type !== "file" && type !== "radio" && type !== "checkbox" && !visible(el)) continue;
     if (el.disabled || el.readOnly) continue;
+    // Hidden "required" mirrors used by custom dropdowns (react-select etc.) duplicate the real field.
+    if (type !== "file" && type !== "radio" && type !== "checkbox" && (el.getAttribute("aria-hidden") === "true" || (el.tabIndex === -1 && parseFloat(getComputedStyle(el).opacity) === 0))) continue;
 
     if (type === "radio" || type === "checkbox") {
       const key = type + ":" + (el.name || tag(el));
@@ -110,9 +112,11 @@
       value = sel && !/^(select|choose|please select|--)/i.test(sel.text) && sel.value ? sel.text.trim() : "";
     }
     if (kind === "combobox" && !value) {
-      const box = el.closest("[class*='container' i], [class*='select' i]");
-      const sv = box && box.querySelector("[class*='singleValue' i], [class*='single-value' i], [class*='selected' i]");
-      if (sv) value = txt(sv);
+      let box = el.parentElement;
+      for (let i = 0; i < 5 && box && !value; i++, box = box.parentElement) {
+        const sv = box.querySelector("[class*='singleValue' i], [class*='single-value' i], [class*='multi-value' i], [class*='multiValue' i]");
+        if (sv) value = txt(sv);
+      }
     }
     if (kind === "file") value = el.files && el.files.length ? el.files[0].name : "";
     const required = el.required || el.getAttribute("aria-required") === "true" || starred(label);
@@ -178,6 +182,14 @@
     });
   }
 
+  // Drop duplicates (same label and kind), keeping the first.
+  const seenKey = new Set();
+  const uniq = out.filter((f) => {
+    const k = f.kind + "|" + f.label + "|" + f.name;
+    if (seenKey.has(k)) return false;
+    seenKey.add(k);
+    return true;
+  });
   window.__jpN = n;
-  return out;
+  return uniq;
 })();

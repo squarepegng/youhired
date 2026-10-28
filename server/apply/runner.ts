@@ -47,6 +47,7 @@ export interface ApplyOptions {
   channel: "chrome" | "msedge" | "chromium";
   headless?: boolean;
   dryRun?: boolean; // never submit (demo)
+  fillEvenIfPending?: boolean; // demo: fill what we can even if some questions need the user
   profileOverride?: ReturnType<typeof load>["profile"];
   cvOverride?: string;
 }
@@ -113,7 +114,11 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
       fields = await readForm(page);
     }
   }
-  if (!fields.length) return save(job, "do_it_yourself", "Couldn't find an application form on the page.");
+  const isApplication = fields.some((f) => f.kind === "file") || (fields.some((f) => /e-?mail/i.test(f.label + f.name)) && fields.some((f) => /name/i.test(f.label + f.name)));
+  if (!isApplication) {
+    await page.close().catch(() => {});
+    return save(job, "do_it_yourself", "Couldn't find an application form JobPilot can fill. Open the link and apply yourself.");
+  }
   log(id, `Found ${fields.length} fields (${fields.filter((f) => f.required).length} required)`);
 
   // Comboboxes hide their options until opened: peek so mapping/AI see the real choices.
@@ -147,7 +152,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
     .map((m) => ({ fieldId: m.field.id, label: m.field.label || m.field.name, required: true, options: m.field.options.length ? m.field.options : undefined, hint: m.note && m.note !== m.field.label ? m.note : undefined }));
   job.pending = pending;
   job.answers = summarise(mapped, coverNote);
-  if (pending.length) {
+  if (pending.length && !opts.fillEvenIfPending) {
     for (const q of pending) log(id, `Needs your answer: ${q.label}`);
     await page.close().catch(() => {});
     return save(job, "needs_answer", `${pending.length} question${pending.length > 1 ? "s" : ""} only you can answer`);
@@ -175,10 +180,10 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   const missing = await refillMissing(id);
   await page.screenshot({ path: shotPath(id), fullPage: true }).catch(() => {});
 
-  if (missing.length) {
-    job.pending = missing.map((f) => ({ fieldId: f.id, label: f.label, required: true, options: f.options.length ? f.options : undefined }));
-    log(id, `Still empty after filling: ${missing.map((f) => f.label).join("; ")}`);
-    return save(job, "filled", `Filled, but ${missing.length} required field(s) still look empty. Check the browser window.`);
+  if (missing.length || pending.length) {
+    job.pending = [...pending, ...missing.filter((f) => !pending.some((q) => q.fieldId === f.id)).map((f) => ({ fieldId: f.id, label: f.label, required: true, options: f.options.length ? f.options : undefined }))];
+    log(id, `Still empty after filling: ${job.pending.map((f) => f.label).join("; ")}`);
+    return save(job, "filled", `Filled, but ${job.pending.length} required field(s) are still empty. Check the browser window.`);
   }
   const flagged = job.flags.includes("hidden-instructions") || mapped.some((m) => /consent/i.test(m.note ?? ""));
   if (opts.autoSubmit && !opts.dryRun && !flagged) return submit(id);

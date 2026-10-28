@@ -96,7 +96,7 @@ export function questionCountry(label: string, job: Pick<Job, "location">): stri
     [/\bnigeria\b/, "nigeria"],
   ];
   for (const [re, c] of m) if (re.test(l)) return c;
-  if (/country (?:in which|where) you (?:reside|live)|your country of residence|where you (?:currently )?live/.test(l)) return "__residence__";
+  if (/country (?:in which|where) you (?:reside|live)|your country of residence|where you (?:currently )?(?:live|reside)|remain in your current (?:location|country)|in your current (?:location|country)/.test(l)) return "__residence__";
   if (/(?:country|location) (?:where|in which) (?:this|the) (?:job|role|position)/.test(l)) {
     const jc = job.location.toLowerCase();
     for (const [re, c] of m) if (re.test(jc)) return c;
@@ -184,7 +184,7 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
   // Identity & contact
   if (/\bfirst[_ ]?name|given name|\bfname\b/.test(l)) return ret(p.preferredName && /prefer/.test(l) ? p.preferredName : name.first);
   if (/\blast[_ ]?name|surname|family name|\blname\b/.test(l)) return ret(name.last);
-  if (/preferred (?:first )?name|nickname/.test(l)) return ret(p.preferredName || null);
+  if (/preferred (?:first )?name|nickname|name (?:you(?:'d| would)|do you) prefer/.test(l)) return ret(p.preferredName || p.legalName.split(/\s+/)[0] || null);
   if (/\b(?:full |legal )?name\b/.test(l) && !/company|employer|school|reference|manager|referr/.test(l)) return ret(p.legalName);
   if (f.kind === "email" || /e-?mail/.test(l)) return ret(p.email);
   if (f.kind === "tel" || /phone|mobile|whatsapp/.test(l)) {
@@ -197,7 +197,13 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
   if (/website|personal (?:site|url)|other (?:link|url)|\burl\b/.test(l)) return ret(p.links.website || p.links.portfolio || null);
   if (/twitter|x\.com/.test(l)) return ret(null);
   if (/pronoun/.test(l)) return ret(p.pronouns || null);
-  if (/current (?:company|employer)|^org$|\borg\b/.test(l)) return ret(currentCompany(p) || null);
+  if (/^(?:current |most recent )?(?:company|employer)(?: name)?$|^org$/.test(normQ(f.label)) || f.name === "org") return ret(currentCompany(p) || null);
+  // "Have you worked at <this company> before?" is answerable from the CV's employer list.
+  const prevAt = new RegExp(`(?:previously|ever|before).{0,30}(?:worked|employed|consulted).{0,30}${job.company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").toLowerCase()}`);
+  if (job.company && prevAt.test(l)) {
+    const was = p.experience.some((e) => normQ(e.company).includes(normQ(job.company)) || normQ(job.company).includes(normQ(e.company)));
+    return ret(yesNo(f, was), "rule", "From the employers on your CV");
+  }
 
   // Location (never stated falsely)
   if (/\bcountry\b/.test(l) && !/authori[sz]|sponsor|visa|eligible|legally/.test(l)) {
@@ -213,7 +219,12 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
   }
 
   // Work authorisation & sponsorship
-  if (/sponsor|visa/.test(l)) {
+  if (/nationality|citizenship|citizen of/.test(l) && !/authori[sz]|sponsor/.test(l)) {
+    const nats = Object.entries(p.workAuth).filter(([, st]) => st === "citizen").map(([c]) => c);
+    if (!nats.length) return { field: f, value: null, source: "user", need: "user", note: "Add your citizenship under work authorisation" };
+    return ret(f.options.length ? pickOption(f.options, nats) : nats.join(", "));
+  }
+  if (/sponsor|(?:require|need)\w*.{0,25}\bvisa|\bvisa.{0,20}(?:status|support|sponsor)/.test(l)) {
     const c = questionCountry(f.label, job);
     if (c) {
       const ok = authorisedIn(p, c);
@@ -233,7 +244,13 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
   if (/relocat/.test(l)) return { field: f, value: null, source: "user", need: "user" };
 
   // Salary, notice
-  if (/salary|compensation|pay expectation|expected (?:pay|rate)|desired (?:pay|rate)|rate expectation|hourly rate/.test(l)) return salaryValue(f, p, job);
+  const livesIn = f.label.match(/(?:do|are) you (?:currently )?(?:live|living|reside|residing|based|located) (?:in|within|near) (?:the )?(.{2,60}?)\??$/i);
+  if (livesIn && !/willing|able|open/.test(l)) {
+    const place = livesIn[1].toLowerCase();
+    const home = [p.city, p.country, normCountry(p.country)].filter(Boolean).map((x) => x.toLowerCase());
+    if (home.length) return ret(yesNo(f, home.some((h) => place.includes(h))), "rule", `You live in ${[p.city, p.country].filter(Boolean).join(", ")}`);
+  }
+  if (!/review|read|aware|understand|acknowledge/.test(l) && /salary|compensation|pay expectation|expected (?:pay|rate)|desired (?:pay|rate)|rate expectation|hourly rate/.test(l)) return salaryValue(f, p, job);
   if (/notice period|when can you start|start date|earliest (?:start|availability)|available to start/.test(l)) return ret(p.noticePeriod || null);
 
   // EEO / demographics: decline unless the user set something else

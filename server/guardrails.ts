@@ -22,6 +22,8 @@ const AI_SCREENING_PATTERNS: RegExp[] = [
   /\bwe (?:screen out|automatically reject|reject|filter out|disqualify)\b[^.\n]{0,60}\b(?:ai|automated|bot)[- ](?:generated|assisted|filled|written|submitted)\b/i,
   /\b(?:ai|bot|automated)[- ](?:generated|assisted|filled|written|submitted) applications?\b[^.\n]{0,60}\b(?:rejected|disqualified|not be considered|not accepted|screened out)\b/i,
   /\bno (?:ai|bots?|automated)[- ](?:generated |assisted |)applications?\b/i,
+  /\b(?:use|using)\s+(?:of\s+)?(?:ai|a\.i\.|chatgpt|generative ai|llms?|ai tools)\b[^.\n]{0,80}\b(?:disqualif\w*|rejected|not be considered|grounds for)/i,
+  /\b(?:agree|promise|confirm) to use only my own words\b/i,
 ];
 
 export interface InjectionFinding {
@@ -31,7 +33,7 @@ export interface InjectionFinding {
 
 export function detectInjection(text: string): InjectionFinding[] {
   const out: InjectionFinding[] = [];
-  const sentences = text.split(/(?<=[.!?\n])\s+/);
+  const sentences = text.split(/(?<=[.!?])\s+|\n+/);
   for (const s of sentences) {
     if (INJECTION_PATTERNS.some((p) => p.test(s))) {
       out.push({ snippet: s.trim().slice(0, 300), plantedWords: plantedWords(s) });
@@ -50,7 +52,7 @@ export function plantedWords(s: string): string[] {
 }
 
 export function detectAiScreening(text: string): string | null {
-  for (const s of text.split(/(?<=[.!?\n])\s+/)) {
+  for (const s of text.split(/(?<=[.!?])\s+|\n+/)) {
     if (AI_SCREENING_PATTERNS.some((p) => p.test(s))) return s.trim().slice(0, 300);
   }
   return null;
