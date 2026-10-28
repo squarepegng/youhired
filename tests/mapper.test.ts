@@ -168,3 +168,13 @@ describe("fixes from live Ashby test", () => {
   it("city/country question gets both", () => expect(m("What city/country will you work from?").value).toBe("Lagos, Nigeria"));
   it("recognises 'how you heard about this role'", () => expect(m("Please share specific information on how you heard about this role").source).toBe("rule"));
 });
+
+describe("facts beat old saved answers", () => {
+  it("residence sponsorship uses the rule even if an old answer said yes", () => {
+    const prof = { ...p, savedAnswers: [{ question: "Will you require sponsorship to work in the country with which you reside now or in the future?", answer: "yes" }] };
+    expect(m("Will you require sponsorship to work in the country with which you reside now or in the future?", "select", { options: ["Yes", "No"] }, job, prof).value).toBe("No");
+  });
+  it("US zipcode question is left blank for non-US candidates", () => {
+    expect(m("If you are based in the U.S. please provide your zipcode:", "text", { required: false }).value).toBeNull();
+  });
+});

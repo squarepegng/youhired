@@ -2,6 +2,7 @@ import { ArrowUpRight, Bot, Building2, ChevronRight, CircleAlert, Clock, Globe, 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import type { Ctx } from "./App";
+import { Kit } from "./Kit";
 import type { Job } from "./types";
 import { EligChip, Fit, STATUS, StatusIcon, relTime, useToast } from "./ui";
 
@@ -13,6 +14,7 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
   const [answers, setAnswers] = useState<Record<string, string>>(() => Object.fromEntries((job.pending ?? []).filter((q) => q.draft).map((q) => [q.label, q.draft!])));
   const [showPosting, setShowPosting] = useState(false);
   const [shotKey, setShotKey] = useState(0);
+  const [kitOpen, setKitOpen] = useState(false);
   const id = encodeURIComponent(job.id);
 
   const poll = useCallback(async () => {
@@ -109,7 +111,7 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
           <span className="faint">· via {ctx.state.sources[job.source] ?? job.source}</span>
         </div>
 
-        <NextStep applyAnyway={applyAnyway} autoSubmit={!!ctx.state.settings.autoSubmit} background={!!ctx.state.settings.background} job={job} busy={busy} apply={apply} submit={submit} finish={finish} setStatus={setStatus} answers={answers} setAnswers={setAnswers} saveAnswers={saveAnswers} pendingDone={pendingDone} />
+        <NextStep openKit={() => setKitOpen(true)} applyAnyway={applyAnyway} autoSubmit={!!ctx.state.settings.autoSubmit} background={!!ctx.state.settings.background} job={job} busy={busy} apply={apply} submit={submit} finish={finish} setStatus={setStatus} answers={answers} setAnswers={setAnswers} saveAnswers={saveAnswers} pendingDone={pendingDone} />
 
         <dl className="props">
           <dt>
@@ -235,6 +237,17 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
           </div>
         </div>
       </div>
+      {kitOpen && (
+        <Kit
+          jobId={job.id}
+          title={`${job.title} at ${job.company}`}
+          onClose={() => setKitOpen(false)}
+          onApplied={() => {
+            setKitOpen(false);
+            void setStatus("applied", "Submitted by you in your browser", "Marked as applied");
+          }}
+        />
+      )}
     </aside>
   );
 }
@@ -254,6 +267,7 @@ function NextStep(p: {
   submit: () => void;
   finish: () => void;
   applyAnyway: () => void;
+  openKit: () => void;
   setStatus: (s: Job["status"], reason: string, ok: string) => void;
   answers: Record<string, string>;
   setAnswers: (a: Record<string, string>) => void;
@@ -279,11 +293,14 @@ function NextStep(p: {
           <ShieldCheck size={15} /> One quick check left
         </div>
         <p>
-          Everything is filled in. The site wants a human to tick a check (a CAPTCHA), which JobPilot never fakes. Press <b>Finish</b>: a JobPilot window shows the filled form, you tick the check, and JobPilot submits and confirms. About 10 seconds of your time.
+          Everything is filled in. The site wants a human to tick a check (a CAPTCHA), which JobPilot never fakes. Press <b>Finish</b>: a JobPilot window shows the filled form, you tick the check, and JobPilot submits. If the check keeps coming back there (some sites keep challenging automated windows), use <b>Finish in my browser</b>: your answers and files are ready to copy.
         </p>
         <div className="actions">
           <button className="btn primary" onClick={p.finish}>
             Finish
+          </button>
+          <button className="btn" onClick={p.openKit}>
+            Finish in my browser
           </button>
           {mine}
           {skip}
@@ -397,9 +414,15 @@ function NextStep(p: {
             <button className="btn primary" onClick={p.apply}>
               Try again
             </button>
-            <a className="btn" href={job.applyUrl} target="_blank" rel="noreferrer">
-              Open application <ArrowUpRight size={13} />
-            </a>
+            {(job.answers?.length ?? 0) > 0 ? (
+              <button className="btn" onClick={p.openKit}>
+                Finish in my browser
+              </button>
+            ) : (
+              <a className="btn" href={job.applyUrl} target="_blank" rel="noreferrer">
+                Open application <ArrowUpRight size={13} />
+              </a>
+            )}
             {mine}
             {skip}
           </div>

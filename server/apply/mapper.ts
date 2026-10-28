@@ -96,7 +96,7 @@ export function questionCountry(label: string, job: Pick<Job, "location">): stri
     [/\bnigeria\b/, "nigeria"],
   ];
   for (const [re, c] of m) if (re.test(l)) return c;
-  if (/country (?:in which|where) you (?:reside|live)|your country of residence|where you (?:currently )?(?:live|reside)|remain in your current (?:location|country)|in your current (?:location|country)/.test(l)) return "__residence__";
+  if (/country (?:in which|where|with which|that|you) ?(?:you )?(?:currently )?(?:reside|live)|your country of residence|where you (?:currently )?(?:live|reside)|remain in your current (?:location|country)|in your current (?:location|country)/.test(l)) return "__residence__";
   if (/(?:country|location) (?:where|in which) (?:this|the) (?:job|role|position)/.test(l)) {
     const jc = job.location.toLowerCase();
     for (const [re, c] of m) if (re.test(jc)) return c;
@@ -164,7 +164,20 @@ function salaryValue(f: FormField, p: Profile, job: Pick<Job, "salaryMin">): Map
   return { field: f, value: null, source: "user", need: "user" };
 }
 
+/**
+ * Profile facts and rules win; an answer you gave before fills only what they can't
+ * (so an old answer to a vaguer question never overrides a clear fact).
+ */
 export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "salaryMin" | "source" | "company">): Mapped {
+  const r = mapByRules(f, p, job);
+  const decided = r.value != null && r.value !== "" && (r.source === "profile" || r.source === "rule" || r.source === "cv-file" || r.source === "cover-file");
+  if (decided || /password|passcode/.test(L(f))) return r;
+  const saved = f.kind === "file" ? null : savedAnswer(p, f);
+  if (saved) return { field: f, value: saved, source: "saved" };
+  return r;
+}
+
+function mapByRules(f: FormField, p: Profile, job: Pick<Job, "location" | "salaryMin" | "source" | "company">): Mapped {
   const l = L(f);
   const ret = (value: string | null, source: Mapped["source"] = "profile", note?: string): Mapped =>
     value ? { field: f, value, source, note } : f.required ? { field: f, value: null, source: "user", need: "user", note: note ?? "Missing from your profile" } : { field: f, value: null, source: "rule", note: "Optional, left blank" };
@@ -182,8 +195,6 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
   if (/password|passcode|\bpin\b/.test(l)) return f.required ? { field: f, value: null, source: "user", need: "user", note: "JobPilot never enters passwords" } : { field: f, value: null, source: "rule", note: "Password field left empty" };
 
   // Answers the user already gave to this exact question before
-  const saved = savedAnswer(p, f);
-  if (saved) return { field: f, value: saved, source: "saved" };
 
   // Identity & contact
   if (/\bfirst[_ ]?name|given name|\bfname\b/.test(l)) return ret(p.preferredName && /prefer/.test(l) ? p.preferredName : name.first);
@@ -211,6 +222,11 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
     return ret(yesNo(f, was), "rule", "From the employers on your CV");
   }
 
+  // Postal codes: only you know yours; a "US zipcode" question doesn't apply outside the US.
+  if (/zip ?code|postal ?code|post ?code/.test(l)) {
+    if (/u\.?s\.?\b|united states/.test(l) && normCountry(p.country) !== "united states") return { field: f, value: null, source: "rule", note: "Only for US applicants, left blank" };
+    return f.required ? { field: f, value: null, source: "user", need: "user" } : { field: f, value: null, source: "rule", note: "Optional, left blank" };
+  }
   // Location (never stated falsely)
   // "Where are you located in the United States?" assumes you live there: never answer it with a guess.
   const whereIn = f.label.match(/^where (?:are|do) you (?:currently )?(?:live|living|reside|located|based) (?:in|within) (?:the )?(.{2,40}?)\s*(?:\(.*\))?\s*\??$/i);

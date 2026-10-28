@@ -120,6 +120,28 @@ app.post("/api/stories/build", wrap(async (_req, res) => {
   res.json({ profile: s.profile });
 }));
 
+/** Everything needed to finish an application by hand in your own browser. */
+app.get("/api/jobs/:id/kit", (req, res) => {
+  const id = String(req.params.id);
+  const job = load().jobs[id];
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  const prof = load().profile;
+  const coverFile = path.join(DATA_DIR, "cover", `${id.replace(/[^\w-]/g, "_")}.txt`);
+  res.json({
+    applyUrl: job.applyUrl,
+    answers: (job.answers ?? []).filter((a) => !/^\((your CV|cover letter file)\)$/.test(a.value) && a.label !== "Cover note (drafted)"),
+    coverNote: job.coverNote ?? (fs.existsSync(coverFile) ? fs.readFileSync(coverFile, "utf8") : ""),
+    cv: fs.existsSync(tailoredPath(job, prof)) ? `/api/jobs/${encodeURIComponent(id)}/cv` : prof.cvFileName ? "/api/cv" : null,
+  });
+});
+
+app.get("/api/cv", (_req, res) => {
+  const p = load().profile;
+  const f = path.join(DATA_DIR, "cv", p.cvFileName || "");
+  if (!p.cvFileName || !fs.existsSync(f)) return res.status(404).end();
+  res.download(f, p.cvFileName);
+});
+
 app.get("/api/jobs/:id/cv", (req, res) => {
   const job = load().jobs[String(req.params.id)];
   if (!job) return res.status(404).end();
