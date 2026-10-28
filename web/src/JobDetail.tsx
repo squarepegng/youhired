@@ -1,203 +1,381 @@
-import { useEffect, useState } from "react";
+import { ArrowUpRight, Bot, Building2, ChevronRight, CircleAlert, Clock, Globe, Hand, LoaderCircle, MapPin, Play, Send, ShieldCheck, Sparkles, Undo2, User, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
-import { FitBar, STATUS } from "./App";
-import type { AppState, Job } from "./types";
+import type { Ctx } from "./App";
+import type { Job } from "./types";
+import { EligChip, Fit, STATUS, StatusIcon, relTime, useToast } from "./ui";
 
-export function JobDetail({ job, state, onClose, refresh }: { job: Job; state: AppState; onClose: () => void; refresh: () => Promise<void> }) {
+export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
+  const toast = useToast();
   const [log, setLog] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [showPosting, setShowPosting] = useState(false);
   const [shotKey, setShotKey] = useState(0);
+  const id = encodeURIComponent(job.id);
 
-  useEffect(() => {
-    setAnswers({});
-    setErr("");
-  }, [job.id]);
+  const poll = useCallback(async () => {
+    const r = await api<{ log: string[]; applying: boolean }>(`/api/jobs/${id}/log`).catch(() => null);
+    if (!r) return false;
+    setLog(r.log);
+    setBusy(r.applying);
+    return r.applying;
+  }, [id]);
 
-  // Poll the log while an application is running.
   useEffect(() => {
     let stop = false;
-    const tick = async () => {
-      const r = await api<{ log: string[]; applying: boolean }>(`/api/jobs/${encodeURIComponent(job.id)}/log`).catch(() => null);
-      if (stop || !r) return;
-      setLog(r.log);
-      setBusy(r.applying);
-      if (r.applying) setTimeout(tick, 1200);
-      else if (busy) {
-        await refresh();
+    let wasBusy = false;
+    const loop = async () => {
+      const running = await poll();
+      if (stop) return;
+      if (running) {
+        wasBusy = true;
+        setTimeout(loop, 1000);
+      } else if (wasBusy) {
+        wasBusy = false;
+        await ctx.refresh();
         setShotKey((k) => k + 1);
       }
     };
-    void tick();
+    void loop();
     return () => {
       stop = true;
     };
-  }, [job.id, busy, refresh]);
+    // re-run when an apply starts
+  }, [poll, busy, ctx.refresh]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const act = async (fn: () => Promise<unknown>) => {
-    setErr("");
+  const run = async (fn: () => Promise<unknown>, ok?: string) => {
     try {
       await fn();
-      await refresh();
+      await ctx.refresh();
+      if (ok) toast(ok);
     } catch (e) {
-      setErr((e as Error).message);
+      toast((e as Error).message, "error");
     }
   };
-  const id = encodeURIComponent(job.id);
   const apply = () =>
-    act(async () => {
+    run(async () => {
       await api(`/api/jobs/${id}/apply`, {});
       setBusy(true);
-    });
-  const submit = () => act(() => api(`/api/jobs/${id}/submit`, {}));
-  const status = (s: Job["status"], reason?: string) => act(() => api(`/api/jobs/${id}/status`, { status: s, reason }));
-  const sendAnswers = () => act(() => api(`/api/jobs/${id}/answers`, { answers: (job.pending ?? []).map((p) => ({ label: p.label, answer: answers[p.label] ?? "" })) }));
+    }, "Opening the application in the browser…");
+  const submit = () => run(() => api(`/api/jobs/${id}/submit`, {}));
+  const setStatus = (status: Job["status"], reason: string, ok: string) => run(() => api(`/api/jobs/${id}/status`, { status, reason }), ok);
+  const saveAnswers = () =>
+    run(async () => {
+      await api(`/api/jobs/${id}/answers`, { answers: (job.pending ?? []).map((p) => ({ label: p.label, answer: answers[p.label] ?? "" })) });
+      await api(`/api/jobs/${id}/apply`, {});
+      setBusy(true);
+    }, "Answers saved. Continuing the application…");
 
-  const canApply = !["applied"].includes(job.status) && !job.needsLogin;
+  const pendingDone = (job.pending ?? []).every((p) => (answers[p.label] ?? "").trim());
 
   return (
-    <div className="drawer" role="dialog" aria-label={`${job.title} at ${job.company}`}>
-      <div className="drawerhead">
-        <div>
-          <div className="muted small">{job.company}</div>
-          <h2>{job.title}</h2>
-          <span className={`pill ${STATUS[job.status].tone}`}>{STATUS[job.status].label}</span> {job.statusReason && <span className="small muted">{job.statusReason}</span>}
+    <aside className="detail" aria-label={`${job.title} at ${job.company}`}>
+      <div className="detailhead">
+        <div className="crumb">
+          <StatusIcon status={job.status} />
+          {STATUS[job.status].label}
+          <ChevronRight size={12} />
+          <span style={{ color: "var(--text-2)" }}>{job.company}</span>
         </div>
-        <button className="icon" onClick={onClose} aria-label="Close">
-          ×
+        <a className="iconbtn" href={job.url} target="_blank" rel="noreferrer" title="Open the original posting">
+          <ArrowUpRight size={15} />
+        </a>
+        <button className="iconbtn" onClick={() => ctx.openJob(null)} aria-label="Close" title="Close (esc)">
+          <X size={15} />
         </button>
       </div>
 
-      <div className="drawerbody">
-        <div className="row wrap">
-          {canApply && (
-            <button className="btn" onClick={apply} disabled={busy}>
-              {busy ? "Working…" : job.status === "filled" ? "Fill again" : "Apply"}
-            </button>
-          )}
-          {job.status === "filled" && job.hasSession && (
-            <button className="btn green" onClick={submit} disabled={busy}>
-              Submit now
-            </button>
-          )}
-          {job.status !== "applied" && (
-            <button className="btn ghost" onClick={() => status("applied", "Marked applied by you")}>
-              I applied myself
-            </button>
-          )}
-          {job.status !== "skipped" && (
-            <button className="btn ghost" onClick={() => status("skipped", "Skipped by you")}>
-              Skip
-            </button>
-          )}
-          <a className="btn ghost" href={job.url} target="_blank" rel="noreferrer">
-            Open posting ↗
-          </a>
+      <div className="detailbody">
+        <h1>{job.title}</h1>
+        <div className="company">
+          <Building2 size={13} /> {job.company}
+          <span className="faint">· via {ctx.state.sources[job.source] ?? job.source}</span>
         </div>
-        {err && <div className="alert red">{err}</div>}
-        {job.status === "filled" && (
-          <div className="alert violet">
-            The form is filled in the JobPilot browser window. Check it there. Edit anything you like, then press <b>Submit now</b> here (or submit in the browser and press <b>I applied myself</b>).
-          </div>
-        )}
-        {job.status === "do_it_yourself" && (
-          <div className="alert orange">
-            JobPilot won't do this one: {job.statusReason} <a href={job.applyUrl} target="_blank" rel="noreferrer">Open the application ↗</a>
-          </div>
-        )}
 
-        {job.status === "needs_answer" && (job.pending?.length ?? 0) > 0 && (
-          <section className="card">
-            <h3>Only you can answer these</h3>
-            <p className="muted small">JobPilot never guesses. Your answers are saved to your profile and reused on future forms with the same question.</p>
-            {job.pending!.map((p) => (
-              <label key={p.fieldId} className="field">
-                <span>{p.label}</span>
-                {p.hint && <span className="muted small">{p.hint}</span>}
-                {p.options?.length ? (
-                  <select value={answers[p.label] ?? ""} onChange={(e) => setAnswers({ ...answers, [p.label]: e.target.value })}>
-                    <option value="">Choose…</option>
-                    {p.options.map((o) => (
-                      <option key={o}>{o}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <textarea rows={2} value={answers[p.label] ?? ""} onChange={(e) => setAnswers({ ...answers, [p.label]: e.target.value })} />
-                )}
-              </label>
-            ))}
-            <div className="row">
-              <button className="btn" onClick={sendAnswers}>
-                Save answers
-              </button>
-              <button className="btn ghost" onClick={() => status("skipped", "Skipped: questions I can't answer")}>
-                Skip this job
-              </button>
-            </div>
-          </section>
-        )}
+        <NextStep job={job} busy={busy} apply={apply} submit={submit} setStatus={setStatus} answers={answers} setAnswers={setAnswers} saveAnswers={saveAnswers} pendingDone={pendingDone} />
 
-        <section className="card">
-          <h3>Can you be hired from where you live?</h3>
-          <p>
-            <span className={`elig ${job.eligibility?.verdict ?? "unclear"}`}>{job.eligibility?.verdict ?? "unknown"}</span> {job.eligibility?.reason}
-          </p>
-          <blockquote>“{job.eligibility?.evidence || job.location || "No location given"}”</blockquote>
-          {job.fit != null && (
+        <dl className="props">
+          <dt>
+            <MapPin size={13} /> Location
+          </dt>
+          <dd>
+            <EligChip job={job} withEvidence={false} />
+            <span className="muted">{job.eligibility?.reason}</span>
+          </dd>
+          <dt>
+            <Sparkles size={13} /> Fit
+          </dt>
+          <dd>
+            <Fit fit={job.fit} />
+            {job.fit == null && <span className="faint">Scored when your AI is connected</span>}
+          </dd>
+          {job.salaryText && (
             <>
-              <h3>Fit</h3>
-              <FitBar fit={job.fit} />
-              <p className="small">{job.whyFit}</p>
+              <dt>
+                <Globe size={13} /> Pay
+              </dt>
+              <dd>{job.salaryText}</dd>
             </>
           )}
-          {job.salaryText && <p className="small muted">Posted pay: {job.salaryText}</p>}
-          {job.flags.includes("hidden-instructions") && <p className="small alert red">This posting contains text aimed at AI tools (e.g. asking for a code word). JobPilot ignored it and checked its answers don't contain it.</p>}
-        </section>
+          <dt>
+            <Clock size={13} /> Updated
+          </dt>
+          <dd>
+            {new Date(job.statusDate).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            {job.postedAt && <span className="faint">· posted {relTime(job.postedAt)} ago</span>}
+          </dd>
+        </dl>
+
+        <div className="section">
+          <div className="sh">Where they hire</div>
+          <blockquote className="evidence">“{job.eligibility?.evidence || job.location || "No location given"}”</blockquote>
+          {job.whyFit && (
+            <p className="muted" style={{ marginTop: 10 }}>
+              {job.whyFit}
+            </p>
+          )}
+          {job.flags.includes("hidden-instructions") && (
+            <div className="callout red">
+              <ShieldCheck size={14} />
+              <span>This posting hides instructions aimed at AI tools (like asking for a code word). JobPilot ignored them and checks that none of its answers contain them.</span>
+            </div>
+          )}
+        </div>
 
         {(job.answers?.length ?? 0) > 0 && (
-          <section className="card">
-            <h3>Answers {job.status === "applied" ? "submitted" : "filled in"}</h3>
-            <dl className="answers">
+          <div className="section">
+            <div className="sh">
+              {job.status === "applied" ? "Answers submitted" : "Answers filled in"} <span className="n">{job.answers!.length}</span>
+            </div>
+            <div className="qa">
               {job.answers!.map((a, i) => (
                 <div key={i}>
-                  <dt>{a.label}</dt>
-                  <dd>
-                    {a.value}
-                    <span className="src">{a.source}</span>
-                  </dd>
+                  <div className="q">{a.label}</div>
+                  <div className="a">{a.value}</div>
+                  <div className="s">
+                    {a.source.startsWith("ai") ? <Bot size={11} /> : <User size={11} />}
+                    {sourceLabel(a.source)}
+                  </div>
                 </div>
               ))}
-            </dl>
-          </section>
+            </div>
+          </div>
         )}
 
         {["filled", "applied"].includes(job.status) && (
-          <section className="card">
-            <h3>Screenshot</h3>
-            <img className="shot" src={`/api/jobs/${id}/screenshot?k=${shotKey}`} alt="The filled form" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
-          </section>
+          <div className="section">
+            <div className="sh">Screenshot</div>
+            <img className="shot" src={`/api/jobs/${id}/screenshot?k=${shotKey}`} alt="The filled application form" onError={(e) => ((e.target as HTMLImageElement).parentElement!.style.display = "none")} />
+          </div>
         )}
 
         {log.length > 0 && (
-          <section className="card">
-            <h3>Activity</h3>
-            <pre className="log">{log.join("\n")}</pre>
-          </section>
+          <div className="section">
+            <div className="sh">
+              Activity {busy && <LoaderCircle size={13} className="spin" />}
+            </div>
+            <ul className="timeline">
+              {log.map((l, i) => {
+                const m = l.match(/^(\d{1,2}:\d{2}(?::\d{2})?\s?[AP]M)\s+(.*)$/);
+                return (
+                  <li key={i}>
+                    {m ? (
+                      <>
+                        <span className="tm">{m[1]}</span>
+                        {m[2]}
+                      </>
+                    ) : (
+                      l
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
 
-        <section className="card">
-          <h3>Posting</h3>
-          <p className="muted small">
-            via {state.sources[job.source] ?? job.source} ·{" "}
-            <a href={job.url} target="_blank" rel="noreferrer">
-              original posting
-            </a>
-            {job.postedAt && ` · posted ${new Date(job.postedAt).toLocaleDateString()}`}
-          </p>
-          <div className="desc">{job.description || "No description."}</div>
-        </section>
+        <div className="section">
+          <div className="sh">
+            Posting
+            <button className="btn ghost sm" style={{ marginLeft: "auto" }} onClick={() => setShowPosting(!showPosting)}>
+              {showPosting ? "Collapse" : "Show all"}
+            </button>
+          </div>
+          <div className="posting" style={showPosting ? undefined : { maxHeight: 180, overflow: "hidden", maskImage: "linear-gradient(#000 60%, transparent)" }}>
+            {job.description || "No description."}
+          </div>
+        </div>
       </div>
-    </div>
+    </aside>
   );
+}
+
+function sourceLabel(s: string): string {
+  const [kind, ...rest] = s.split(" · ");
+  const k = { profile: "From your profile", saved: "Your earlier answer", rule: "Your rules", "cv-file": "Your CV file", "cover-file": "Cover letter file", ai: "Written by your AI from your CV", user: "You" }[kind] ?? kind;
+  return rest.length ? `${k} · ${rest.join(" · ")}` : k;
+}
+
+function NextStep(p: {
+  job: Job;
+  busy: boolean;
+  apply: () => void;
+  submit: () => void;
+  setStatus: (s: Job["status"], reason: string, ok: string) => void;
+  answers: Record<string, string>;
+  setAnswers: (a: Record<string, string>) => void;
+  saveAnswers: () => void;
+  pendingDone: boolean;
+}) {
+  const { job, busy } = p;
+  const skip = (
+    <button className="btn ghost" onClick={() => p.setStatus("skipped", "Skipped by you", "Moved to Skipped")}>
+      Skip
+    </button>
+  );
+  const mine = (
+    <button className="btn ghost" onClick={() => p.setStatus("applied", "Marked applied by you", "Marked as applied")}>
+      I applied myself
+    </button>
+  );
+
+  if (busy)
+    return (
+      <div className="next accent">
+        <div className="h">
+          <LoaderCircle size={15} className="spin" /> Working on the application…
+        </div>
+        <p>Filling the form in the JobPilot browser window. Watch the activity below. It stops before submitting.</p>
+      </div>
+    );
+
+  switch (job.status) {
+    case "found":
+      return (
+        <div className="next accent">
+          <div className="h">
+            <Play size={14} /> Ready when you are
+          </div>
+          <p>JobPilot opens the form in its own browser window, fills it from your profile and CV, and stops so you can check it before anything is sent.</p>
+          <div className="actions">
+            <button className="btn primary" onClick={p.apply}>
+              Fill application
+            </button>
+            {skip}
+            {mine}
+          </div>
+        </div>
+      );
+    case "needs_answer":
+      return (
+        <div className="next warn">
+          <div className="h">
+            <CircleAlert size={15} color="var(--amber)" /> {job.pending?.length ?? 0} question{(job.pending?.length ?? 0) === 1 ? "" : "s"} only you can answer
+          </div>
+          <p>JobPilot never guesses. Your answers are saved to your profile and reused on future forms.</p>
+          {(job.pending ?? []).map((q) => (
+            <div className="question" key={q.fieldId}>
+              <label htmlFor={q.fieldId}>{q.label}</label>
+              {q.hint && <div className="hint">{q.hint}</div>}
+              {q.options?.length ? (
+                <select id={q.fieldId} value={p.answers[q.label] ?? ""} onChange={(e) => p.setAnswers({ ...p.answers, [q.label]: e.target.value })}>
+                  <option value="">Choose…</option>
+                  {q.options.map((o) => (
+                    <option key={o}>{o}</option>
+                  ))}
+                </select>
+              ) : (
+                <textarea id={q.fieldId} rows={2} value={p.answers[q.label] ?? ""} onChange={(e) => p.setAnswers({ ...p.answers, [q.label]: e.target.value })} />
+              )}
+            </div>
+          ))}
+          <div className="actions">
+            <button className="btn primary" disabled={!p.pendingDone} onClick={p.saveAnswers}>
+              Save & continue
+            </button>
+            {skip}
+          </div>
+        </div>
+      );
+    case "filled":
+      return (
+        <div className="next accent">
+          <div className="h">
+            <Send size={14} /> Check the form, then submit
+          </div>
+          <p>
+            {job.hasSession
+              ? "The filled form is open in the JobPilot browser window. Change anything you like there, then submit."
+              : "The browser window for this form was closed. Fill it again to review and submit."}
+            {(job.pending?.length ?? 0) > 0 && ` Still empty: ${job.pending!.map((x) => x.label).join("; ")}.`}
+          </p>
+          <div className="actions">
+            {job.hasSession && (
+              <button className="btn success" onClick={p.submit}>
+                Submit application
+              </button>
+            )}
+            <button className={`btn ${job.hasSession ? "" : "primary"}`} onClick={p.apply}>
+              Fill again
+            </button>
+            {mine}
+          </div>
+        </div>
+      );
+    case "do_it_yourself":
+      return (
+        <div className="next warn">
+          <div className="h">
+            <Hand size={15} color="var(--orange)" /> This one's yours to do
+          </div>
+          <p>{job.statusReason}</p>
+          <div className="actions">
+            <a className="btn primary" href={job.applyUrl} target="_blank" rel="noreferrer">
+              Open application <ArrowUpRight size={13} />
+            </a>
+            {mine}
+            {skip}
+          </div>
+        </div>
+      );
+    case "applied":
+      return (
+        <div className="next">
+          <div className="h">
+            <StatusIcon status="applied" /> Applied {relTime(job.statusDate)} ago
+          </div>
+          <p>{job.statusReason}</p>
+        </div>
+      );
+    case "skipped":
+      return (
+        <div className="next">
+          <div className="h">
+            <StatusIcon status="skipped" /> Skipped
+          </div>
+          <p>{job.statusReason}</p>
+          <div className="actions">
+            <button className="btn" onClick={() => p.setStatus("found", "Moved back by you", "Moved to To apply")}>
+              <Undo2 size={13} /> Move to To apply
+            </button>
+          </div>
+        </div>
+      );
+    case "error":
+      return (
+        <div className="next warn">
+          <div className="h">
+            <StatusIcon status="error" /> Something went wrong
+          </div>
+          <p>{job.statusReason}</p>
+          <div className="actions">
+            <button className="btn primary" onClick={p.apply}>
+              Try again
+            </button>
+            {skip}
+          </div>
+        </div>
+      );
+  }
 }

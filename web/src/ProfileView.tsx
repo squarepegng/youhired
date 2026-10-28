@@ -1,44 +1,60 @@
-import { useState } from "react";
+import { CircleAlert, CircleCheck, FileText, LoaderCircle, Plus, Trash2, Upload, User } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import type { AppState, Profile, WorkAuthStatus } from "./types";
+import type { Ctx } from "./App";
+import type { Profile, WorkAuthStatus } from "./types";
+import { Switch, TagInput, useToast } from "./ui";
 
-const AUTH_LABEL: Record<WorkAuthStatus, string> = {
+type Tab = "basics" | "work" | "salary" | "links" | "cv" | "answers";
+
+const AUTH: Record<WorkAuthStatus, string> = {
   citizen: "Citizen",
-  authorized: "Authorised (visa / permit / residency)",
+  authorized: "Authorised (visa / permit)",
   needs_sponsorship: "Would need sponsorship",
   not_authorized: "Not authorised",
 };
 
-export function ProfileView({ state, refresh }: { state: AppState; refresh: () => Promise<void> }) {
-  const [p, setP] = useState<Profile>(state.profile);
-  const [msg, setMsg] = useState<{ tone: string; text: string } | null>(null);
+export function ProfileView({ ctx }: { ctx: Ctx }) {
+  const toast = useToast();
+  const [p, setP] = useState<Profile>(ctx.state.profile);
+  const [tab, setTab] = useState<Tab>(ctx.state.profile.cvFileName ? "basics" : "cv");
   const [uploading, setUploading] = useState(false);
   const [hint, setHint] = useState("");
   const [newCountry, setNewCountry] = useState("");
+  const saveT = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const set = (patch: Partial<Profile>) => setP({ ...p, ...patch, confirmed: false });
+  // Autosave. Any edit means the facts need confirming again.
+  const set = (patch: Partial<Profile>) => {
+    const next = { ...p, ...patch, confirmed: false };
+    setP(next);
+    clearTimeout(saveT.current);
+    saveT.current = setTimeout(() => void api<Profile>("/api/profile", next).then(() => ctx.refresh()), 500);
+  };
+  useEffect(() => () => clearTimeout(saveT.current), []);
 
-  const save = async (confirm = false) => {
-    setMsg(null);
-    if (confirm) {
-      const missing = [
-        ["legal name", p.legalName],
-        ["email", p.email],
-        ["phone", p.phone],
-        ["country of residence", p.country],
-        ["city", p.city],
-      ].filter(([, v]) => !String(v).trim());
-      if (missing.length) return setMsg({ tone: "red", text: `Fill in: ${missing.map(([k]) => k).join(", ")}.` });
+  const missing = [
+    ["Legal name", p.legalName],
+    ["Email", p.email],
+    ["Phone", p.phone],
+    ["Country you live in", p.country],
+    ["City", p.city],
+  ].filter(([, v]) => !String(v).trim()).map(([k]) => k);
+
+  const confirm = async () => {
+    if (missing.length) {
+      setTab("basics");
+      return toast(`Fill in: ${missing.join(", ")}`, "error");
     }
-    const saved = await api<Profile>("/api/profile", { ...p, confirmed: confirm });
+    clearTimeout(saveT.current);
+    const saved = await api<Profile>("/api/profile", { ...p, confirmed: true });
     setP(saved);
-    await refresh();
-    setMsg({ tone: "green", text: confirm ? "Confirmed. JobPilot will only ever use these facts as written." : "Saved." });
+    await ctx.refresh();
+    toast("Facts confirmed. JobPilot will only use them as written.");
   };
 
   const upload = async (file: File) => {
     setUploading(true);
-    setMsg(null);
     try {
       await api("/api/profile", p);
       const fd = new FormData();
@@ -46,248 +62,336 @@ export function ProfileView({ state, refresh }: { state: AppState; refresh: () =
       const r = await api<{ profile: Profile; locationOnCv: string }>("/api/cv", fd);
       setP(r.profile);
       setHint(r.locationOnCv);
-      await refresh();
-      setMsg({ tone: "green", text: "CV read. Check what was pulled out below, then confirm your facts." });
+      await ctx.refresh();
+      toast("CV read. Check your experience, then confirm your facts.");
     } catch (e) {
-      setMsg({ tone: "red", text: (e as Error).message });
-      await refresh();
+      toast((e as Error).message, "error");
+      await ctx.refresh();
     } finally {
       setUploading(false);
     }
   };
 
   const text = (label: string, key: keyof Profile, placeholder = "", note?: string) => (
-    <label className="field">
-      <span>{label}</span>
-      <input value={String(p[key] ?? "")} placeholder={placeholder} onChange={(e) => set({ [key]: e.target.value } as Partial<Profile>)} />
-      {note && <span className="muted small">{note}</span>}
-    </label>
+    <div className="f">
+      <label htmlFor={`p-${String(key)}`}>{label}</label>
+      <input id={`p-${String(key)}`} value={String(p[key] ?? "")} placeholder={placeholder} onChange={(e) => set({ [key]: e.target.value } as Partial<Profile>)} />
+      {note && <div className="note">{note}</div>}
+    </div>
   );
 
+  const tabs: { id: Tab; label: string; warn?: boolean }[] = [
+    { id: "cv", label: "CV & experience", warn: !p.cvFileName },
+    { id: "basics", label: "Basics", warn: missing.length > 0 },
+    { id: "work", label: "Right to work" },
+    { id: "salary", label: "Salary & notice" },
+    { id: "links", label: "Links & EEO" },
+    { id: "answers", label: `Saved answers${p.savedAnswers.length ? ` (${p.savedAnswers.length})` : ""}` },
+  ];
+
   return (
-    <div className="page">
-      <header className="pagehead">
-        <div>
-          <h1>Profile</h1>
-          <p className="muted">Your CV gives JobPilot your experience. The facts below it are yours to confirm. JobPilot never guesses them.</p>
+    <>
+      <div className="topbar">
+        <div className="title">
+          <User size={15} /> Profile
         </div>
-        <div className="row">
-          <button className="btn ghost" onClick={() => save(false)}>
-            Save draft
-          </button>
-          <button className="btn" onClick={() => save(true)}>
-            {p.confirmed ? "Confirmed ✓" : "Confirm facts"}
-          </button>
-        </div>
-      </header>
-      {msg && <div className={`alert ${msg.tone}`}>{msg.text}</div>}
-
-      <section className="card">
-        <h3>CV</h3>
-        <label className="drop">
-          <input type="file" accept=".pdf,.docx" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
-          {uploading ? "Reading your CV…" : p.cvFileName ? `${p.cvFileName} · click to replace` : "Upload your CV (PDF or DOCX)"}
-        </label>
-        <p className="muted small">This file is uploaded to application forms as-is. Your AI reads it once to fill in your experience below.</p>
-      </section>
-
-      <section className="card">
-        <h3>Facts only you can confirm</h3>
-        <div className="grid2">
-          {text("Legal name", "legalName")}
-          {text("Preferred name", "preferredName", "Optional")}
-          {text("Email", "email")}
-          {text("Phone (with country code)", "phone", "+234 …")}
-          {text("Country you live in", "country", "Nigeria", hint ? `Your CV says: ${hint}` : undefined)}
-          {text("City", "city", "Lagos")}
-          {text("Timezone", "timezone", "UTC+1")}
-          {text("Pronouns", "pronouns", "Optional")}
-          {text("Notice period / when you can start", "noticePeriod", "e.g. 4 weeks")}
-        </div>
-      </section>
-
-      <section className="card">
-        <h3>Where you can legally work</h3>
-        <p className="muted small">Your country of residence counts automatically. Add every other country where you're a citizen or hold a visa/permit, and where you're not, so questions get honest answers.</p>
-        <table className="mini">
-          <tbody>
-            {Object.entries(p.workAuth).map(([c, st]) => (
-              <tr key={c}>
-                <td>{c}</td>
-                <td>
-                  <select value={st} onChange={(e) => set({ workAuth: { ...p.workAuth, [c]: e.target.value as WorkAuthStatus } })}>
-                    {Object.entries(AUTH_LABEL).map(([k, v]) => (
-                      <option key={k} value={k}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td>
-                  <button
-                    className="link"
-                    onClick={() => {
-                      const w = { ...p.workAuth };
-                      delete w[c];
-                      set({ workAuth: w });
-                    }}
-                  >
-                    remove
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="row">
-          <input value={newCountry} onChange={(e) => setNewCountry(e.target.value)} placeholder="Country, e.g. United States" />
-          <button
-            className="btn ghost"
-            disabled={!newCountry.trim()}
-            onClick={() => {
-              set({ workAuth: { ...p.workAuth, [newCountry.trim()]: "not_authorized" } });
-              setNewCountry("");
-            }}
-          >
-            Add country
-          </button>
-        </div>
-        <label className="toggle">
-          <input type="checkbox" checked={p.needsSponsorship} onChange={(e) => set({ needsSponsorship: e.target.checked })} />
-          <span>I would need visa sponsorship to work in countries where I'm not authorised</span>
-        </label>
-        <label className="toggle">
-          <input type="checkbox" checked={p.openToContractor} onChange={(e) => set({ openToContractor: e.target.checked })} />
-          <span>I'm open to contractor arrangements (e.g. via Deel or Remote.com)</span>
-        </label>
-      </section>
-
-      <section className="card">
-        <h3>Salary questions</h3>
-        <label className="toggle">
-          <input type="checkbox" checked={p.salary.leaveBlankIfOptional} onChange={(e) => set({ salary: { ...p.salary, leaveBlankIfOptional: e.target.checked } })} />
-          <span>Leave salary blank when the question is optional</span>
-        </label>
-        <label className="toggle">
-          <input type="checkbox" checked={p.salary.usePostedMinimum} onChange={(e) => set({ salary: { ...p.salary, usePostedMinimum: e.target.checked } })} />
-          <span>If the posting shows a pay range, answer with its minimum</span>
-        </label>
-        <div className="grid3">
-          <label className="field">
-            <span>Default amount (when a number is required)</span>
-            <input type="number" value={p.salary.defaultAmount ?? ""} onChange={(e) => set({ salary: { ...p.salary, defaultAmount: e.target.value ? +e.target.value : null } })} placeholder="Leave blank to be asked" />
-          </label>
-          <label className="field">
-            <span>Currency</span>
-            <input value={p.salary.currency} onChange={(e) => set({ salary: { ...p.salary, currency: e.target.value } })} />
-          </label>
-          <label className="field">
-            <span>Per</span>
-            <select value={p.salary.period} onChange={(e) => set({ salary: { ...p.salary, period: e.target.value as Profile["salary"]["period"] } })}>
-              <option value="year">year</option>
-              <option value="month">month</option>
-              <option value="hour">hour</option>
-            </select>
-          </label>
-        </div>
-        <label className="field">
-          <span>Text answer for written salary questions</span>
-          <input value={p.salary.textAnswer} onChange={(e) => set({ salary: { ...p.salary, textAnswer: e.target.value } })} />
-        </label>
-      </section>
-
-      <section className="card">
-        <h3>Links</h3>
-        <div className="grid2">
-          {(["portfolio", "linkedin", "github", "website"] as const).map((k) => (
-            <label className="field" key={k}>
-              <span>{{ portfolio: "Portfolio", linkedin: "LinkedIn", github: "GitHub", website: "Website" }[k]}</span>
-              <input value={p.links[k]} onChange={(e) => set({ links: { ...p.links, [k]: e.target.value } })} placeholder="https://" />
-            </label>
-          ))}
-        </div>
-      </section>
-
-      <section className="card">
-        <h3>Equal-opportunity questions</h3>
-        <p className="muted small">Default is to decline to self-identify. Change any of these if you'd rather answer.</p>
-        <div className="grid2">
-          {(["gender", "race", "veteran", "disability"] as const).map((k) => (
-            <label className="field" key={k}>
-              <span>{{ gender: "Gender", race: "Race / ethnicity", veteran: "Veteran status", disability: "Disability" }[k]}</span>
-              <input value={p.eeo[k]} onChange={(e) => set({ eeo: { ...p.eeo, [k]: e.target.value } })} />
-            </label>
-          ))}
-        </div>
-      </section>
-
-      <section className="card">
-        <h3>Never apply to</h3>
-        <textarea rows={3} defaultValue={p.neverApply.join("\n")} onBlur={(e) => set({ neverApply: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean) })} placeholder="One company per line" />
-      </section>
-
-      <section className="card">
-        <h3>From your CV</h3>
-        <p className="muted small">Pulled out by your AI. Edit freely. AI-written answers may only use what's here and in the CV itself.</p>
-        <label className="field">
-          <span>Headline</span>
-          <input value={p.headline} onChange={(e) => set({ headline: e.target.value })} />
-        </label>
-        <label className="field">
-          <span>Summary</span>
-          <textarea rows={3} value={p.summary} onChange={(e) => set({ summary: e.target.value })} />
-        </label>
-        <div className="grid2">
-          <label className="field">
-            <span>Years of experience</span>
-            <input type="number" value={p.yearsExperience ?? ""} onChange={(e) => set({ yearsExperience: e.target.value ? +e.target.value : null })} />
-          </label>
-          <label className="field">
-            <span>Skills</span>
-            <input defaultValue={p.skills.join(", ")} onBlur={(e) => set({ skills: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} />
-          </label>
-        </div>
-        {p.experience.length > 0 && (
-          <div className="exp">
-            {p.experience.map((e, i) => (
-              <div key={i}>
-                <b>{e.title}</b> · {e.company} <span className="muted small">{[e.start, e.end].filter(Boolean).join(" – ")}</span>
-                <ul>
-                  {e.highlights.map((h, j) => (
-                    <li key={j} className="small">
-                      {h}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {p.savedAnswers.length > 0 && (
-        <section className="card">
-          <h3>Answers you've given</h3>
-          <p className="muted small">Reused whenever a form asks the same question.</p>
-          {p.savedAnswers.map((a, i) => (
-            <label className="field" key={i}>
-              <span>
-                {a.question}{" "}
-                <button className="link" onClick={() => set({ savedAnswers: p.savedAnswers.filter((_, j) => j !== i) })}>
-                  remove
-                </button>
-              </span>
-              <input value={a.answer} onChange={(e) => set({ savedAnswers: p.savedAnswers.map((x, j) => (j === i ? { ...x, answer: e.target.value } : x)) })} />
-            </label>
-          ))}
-        </section>
-      )}
-
-      <div className="row end">
-        <button className="btn" onClick={() => save(true)}>
-          {p.confirmed ? "Confirmed ✓" : "Confirm facts"}
+        <div className="spacer" />
+        <span className="faint" style={{ fontSize: 12 }}>
+          Changes save automatically
+        </span>
+        <button className={`btn ${p.confirmed ? "" : "primary"}`} onClick={confirm}>
+          {p.confirmed ? <CircleCheck size={14} color="var(--green)" /> : null}
+          {p.confirmed ? "Confirmed" : "Confirm facts"}
         </button>
       </div>
-    </div>
+      <div className="content">
+        <div className="page">
+          <h1>Your profile</h1>
+          <p className="lede">Your CV tells JobPilot what you've done. The facts here (where you live, where you can work, salary) are only ever used exactly as you write them.</p>
+
+          {p.confirmed ? (
+            <div className="banner ok">
+              <CircleCheck size={16} color="var(--green)" />
+              <div className="grow">
+                <b>Facts confirmed</b>
+                <span>JobPilot can fill applications. Editing anything will ask you to confirm again.</span>
+              </div>
+            </div>
+          ) : (
+            <div className="banner">
+              <CircleAlert size={16} color="var(--amber)" />
+              <div className="grow">
+                <b>Confirm your facts before applying</b>
+                <span>{missing.length ? `Still needed: ${missing.join(", ")}.` : "Check each tab, then confirm. Nothing is guessed."}</span>
+              </div>
+              <button className="btn primary" onClick={confirm}>
+                Confirm facts
+              </button>
+            </div>
+          )}
+
+          <div className="pagetabs" role="tablist">
+            {tabs.map((t) => (
+              <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? "on" : ""} onClick={() => setTab(t.id)}>
+                {t.label}
+                {t.warn && <span className="warn" />}
+              </button>
+            ))}
+          </div>
+
+          {tab === "cv" && (
+            <>
+              <label className="drop">
+                <input ref={fileRef} type="file" accept=".pdf,.docx" hidden onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+                <span className="ic">{uploading ? <LoaderCircle size={17} className="spin" /> : p.cvFileName ? <FileText size={17} /> : <Upload size={17} />}</span>
+                <div>
+                  <b>{uploading ? "Reading your CV…" : p.cvFileName || "Upload your CV"}</b>
+                  <span>{p.cvFileName ? "Click to replace. This exact file is attached to applications." : "PDF or DOCX. Your AI reads it once to learn your experience."}</span>
+                </div>
+              </label>
+
+              <div className="group-title">Summary</div>
+              <p className="group-desc">Pulled from your CV by your AI. Edit freely. Written answers can only use what's here and in the CV.</p>
+              <div className="box">
+                <div className="srow stack">
+                  <div className="f">
+                    <label>Headline</label>
+                    <input value={p.headline} onChange={(e) => set({ headline: e.target.value })} placeholder="Product designer, 7 years in fintech" />
+                  </div>
+                  <div className="f">
+                    <label>Summary</label>
+                    <textarea rows={3} value={p.summary} onChange={(e) => set({ summary: e.target.value })} />
+                  </div>
+                  <div className="grid2">
+                    <div className="f">
+                      <label>Years of experience</label>
+                      <input type="number" value={p.yearsExperience ?? ""} onChange={(e) => set({ yearsExperience: e.target.value ? +e.target.value : null })} />
+                    </div>
+                  </div>
+                  <div className="f">
+                    <label>Skills</label>
+                    <TagInput value={p.skills} onChange={(v) => set({ skills: v })} placeholder="Figma, research…" />
+                  </div>
+                </div>
+              </div>
+              {p.experience.length > 0 && (
+                <>
+                  <div className="group-title">Experience</div>
+                  <div className="box">
+                    {p.experience.map((e, i) => (
+                      <div className="exp" key={i}>
+                        <b>{e.title}</b> <span className="muted">· {e.company}</span> <span className="faint">{[e.start, e.end].filter(Boolean).join(" – ")}</span>
+                        {e.highlights.length > 0 && (
+                          <ul>
+                            {e.highlights.map((h, j) => (
+                              <li key={j}>{h}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
+          {tab === "basics" && (
+            <div className="box">
+              <div className="srow stack">
+                <div className="grid2">
+                  {text("Legal name", "legalName", "As on your ID")}
+                  {text("Preferred name", "preferredName", "Optional")}
+                  {text("Email", "email", "you@example.com")}
+                  {text("Phone", "phone", "+234 …", "Include the country code")}
+                  {text("Country you live in", "country", "Nigeria", hint ? `Your CV says: ${hint}` : undefined)}
+                  {text("City", "city", "Lagos")}
+                  {text("Timezone", "timezone", "UTC+1")}
+                  {text("Pronouns", "pronouns", "Optional")}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === "work" && (
+            <>
+              <p className="group-desc">Your country of residence counts automatically. Add every other country where you're a citizen or hold a permit, and the ones where you aren't, so authorisation questions get honest answers.</p>
+              <div className="box">
+                {Object.entries(p.workAuth).map(([c, st]) => (
+                  <div className="srow" key={c}>
+                    <div className="l">
+                      <b>{c}</b>
+                    </div>
+                    <div className="r">
+                      <select value={st} onChange={(e) => set({ workAuth: { ...p.workAuth, [c]: e.target.value as WorkAuthStatus } })}>
+                        {Object.entries(AUTH).map(([k, v]) => (
+                          <option key={k} value={k}>
+                            {v}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="iconbtn"
+                        aria-label={`Remove ${c}`}
+                        onClick={() => {
+                          const w = { ...p.workAuth };
+                          delete w[c];
+                          set({ workAuth: w });
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="srow">
+                  <input value={newCountry} onChange={(e) => setNewCountry(e.target.value)} placeholder="Add a country, e.g. United States" onKeyDown={(e) => e.key === "Enter" && newCountry.trim() && (set({ workAuth: { ...p.workAuth, [newCountry.trim()]: "not_authorized" } }), setNewCountry(""))} />
+                  <button
+                    className="btn"
+                    disabled={!newCountry.trim()}
+                    onClick={() => {
+                      set({ workAuth: { ...p.workAuth, [newCountry.trim()]: "not_authorized" } });
+                      setNewCountry("");
+                    }}
+                  >
+                    <Plus size={13} /> Add
+                  </button>
+                </div>
+              </div>
+              <div className="group-title">Arrangements</div>
+              <div className="box">
+                <div className="srow">
+                  <div className="l">
+                    <b>Need visa sponsorship elsewhere</b>
+                    <span>For countries where you aren't authorised to work.</span>
+                  </div>
+                  <Switch label="Needs sponsorship" checked={p.needsSponsorship} onChange={(v) => set({ needsSponsorship: v })} />
+                </div>
+                <div className="srow">
+                  <div className="l">
+                    <b>Open to contractor roles</b>
+                    <span>For example through Deel or Remote.com. Keeps "contractors anywhere" roles.</span>
+                  </div>
+                  <Switch label="Open to contractor roles" checked={p.openToContractor} onChange={(v) => set({ openToContractor: v })} />
+                </div>
+              </div>
+              <div className="group-title">Never apply to</div>
+              <TagInput value={p.neverApply} onChange={(v) => set({ neverApply: v })} placeholder="Company names, press Enter after each" />
+            </>
+          )}
+
+          {tab === "salary" && (
+            <>
+              <div className="box">
+                <div className="srow">
+                  <div className="l">
+                    <b>Leave optional salary questions blank</b>
+                  </div>
+                  <Switch label="Leave optional blank" checked={p.salary.leaveBlankIfOptional} onChange={(v) => set({ salary: { ...p.salary, leaveBlankIfOptional: v } })} />
+                </div>
+                <div className="srow">
+                  <div className="l">
+                    <b>Use the posted minimum</b>
+                    <span>When the posting shows a pay range, answer with its lowest figure.</span>
+                  </div>
+                  <Switch label="Use posted minimum" checked={p.salary.usePostedMinimum} onChange={(v) => set({ salary: { ...p.salary, usePostedMinimum: v } })} />
+                </div>
+                <div className="srow">
+                  <div className="l">
+                    <b>Default amount</b>
+                    <span>Used when a number is required and no range is posted. Leave blank to be asked.</span>
+                  </div>
+                  <div className="r">
+                    <input type="number" style={{ width: 120 }} value={p.salary.defaultAmount ?? ""} onChange={(e) => set({ salary: { ...p.salary, defaultAmount: e.target.value ? +e.target.value : null } })} />
+                    <input style={{ width: 70 }} value={p.salary.currency} onChange={(e) => set({ salary: { ...p.salary, currency: e.target.value } })} aria-label="Currency" />
+                    <select style={{ width: 90 }} value={p.salary.period} onChange={(e) => set({ salary: { ...p.salary, period: e.target.value as Profile["salary"]["period"] } })} aria-label="Period">
+                      <option value="year">/ year</option>
+                      <option value="month">/ month</option>
+                      <option value="hour">/ hour</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="srow stack">
+                  <div className="l">
+                    <b>Written answer</b>
+                    <span>For questions like "What are your salary expectations?"</span>
+                  </div>
+                  <input value={p.salary.textAnswer} onChange={(e) => set({ salary: { ...p.salary, textAnswer: e.target.value } })} />
+                </div>
+              </div>
+              <div className="group-title">Availability</div>
+              <div className="box">
+                <div className="srow">
+                  <div className="l">
+                    <b>Notice period</b>
+                    <span>Used for "When can you start?"</span>
+                  </div>
+                  <div className="r">
+                    <input value={p.noticePeriod} onChange={(e) => set({ noticePeriod: e.target.value })} placeholder="e.g. 4 weeks" />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === "links" && (
+            <>
+              <div className="box">
+                {(["portfolio", "linkedin", "github", "website"] as const).map((k) => (
+                  <div className="srow" key={k}>
+                    <div className="l">
+                      <b>{{ portfolio: "Portfolio", linkedin: "LinkedIn", github: "GitHub", website: "Website" }[k]}</b>
+                    </div>
+                    <div className="r" style={{ width: 360 }}>
+                      <input value={p.links[k]} onChange={(e) => set({ links: { ...p.links, [k]: e.target.value } })} placeholder="https://" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="group-title">Equal-opportunity questions</div>
+              <p className="group-desc">By default JobPilot declines to self-identify, using the form's own wording. Change any you'd rather answer.</p>
+              <div className="box">
+                {(["gender", "race", "veteran", "disability"] as const).map((k) => (
+                  <div className="srow" key={k}>
+                    <div className="l">
+                      <b>{{ gender: "Gender", race: "Race / ethnicity", veteran: "Veteran status", disability: "Disability" }[k]}</b>
+                    </div>
+                    <div className="r" style={{ width: 360 }}>
+                      <input value={p.eeo[k]} onChange={(e) => set({ eeo: { ...p.eeo, [k]: e.target.value } })} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {tab === "answers" &&
+            (p.savedAnswers.length ? (
+              <>
+                <p className="group-desc">Answers you've given to questions JobPilot couldn't answer. Reused whenever a form asks the same thing.</p>
+                <div className="box">
+                  {p.savedAnswers.map((a, i) => (
+                    <div className="srow stack" key={i}>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <div className="l">
+                          <b>{a.question}</b>
+                        </div>
+                        <button className="iconbtn" aria-label="Remove answer" onClick={() => set({ savedAnswers: p.savedAnswers.filter((_, j) => j !== i) })}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <input value={a.answer} onChange={(e) => set({ savedAnswers: p.savedAnswers.map((x, j) => (j === i ? { ...x, answer: e.target.value } : x)) })} />
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="empty" style={{ margin: "40px auto" }}>
+                <p>No saved answers yet. When a form asks something only you can answer, your reply is kept here and reused.</p>
+              </div>
+            ))}
+        </div>
+      </div>
+    </>
   );
 }

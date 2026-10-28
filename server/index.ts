@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
-import { closeSession, hasSession, logs, prepare, shotPath, submit } from "./apply/runner.js";
+import { applyBlocker, configureQueue, currentApply, enqueue, queued } from "./apply/queue.js";
+import { closeSession, hasSession, logs, shotPath, submit } from "./apply/runner.js";
+import { chat, configureAssistant, resolveAction } from "./assistant.js";
 import { cvToText, extractProfile, mergeExtract } from "./cv.js";
 import { detectAts, hostNeedsLogin } from "./guardrails.js";
 import { PROVIDERS, makeLLM, testConnection } from "./providers/index.js";
@@ -24,6 +26,8 @@ const llmOrNull = () => {
     return null;
   }
 };
+configureQueue(llmOrNull);
+configureAssistant(llmOrNull);
 const publicSettings = (s: Settings) => ({ ...s, apiKey: maskKey(s.apiKey), hasKey: !!s.apiKey });
 const wrap = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => fn(req, res).catch(next);
 
@@ -101,7 +105,9 @@ app.post("/api/search/run", (_req, res) => {
 app.get("/api/search/progress", (_req, res) => res.json(progress));
 
 app.get("/api/jobs", (_req, res) => {
-  const jobs = Object.values(load().jobs).map((j) => ({ ...j, description: j.description.slice(0, 4000), hasSession: hasSession(j.id) }));
+  const q = queued();
+  const cur = currentApply();
+  const jobs = Object.values(load().jobs).map((j) => ({ ...j, description: j.description.slice(0, 4000), hasSession: hasSession(j.id), working: cur === j.id || q.includes(j.id) }));
   res.json(jobs);
 });
 
@@ -129,23 +135,14 @@ app.post("/api/jobs/add", (req, res) => {
   res.json(job);
 });
 
-let applying: string | null = null;
 app.post("/api/jobs/:id/apply", (req, res) => {
-  const id = req.params.id;
-  if (applying) return res.status(409).json({ error: "Already working on another application. Wait for it to finish." });
-  const { settings, profile, jobs } = load();
-  if (!jobs[id]) return res.status(404).json({ error: "Job not found" });
-  if (!profile.cvFileName || !fs.existsSync(path.join(DATA_DIR, "cv", profile.cvFileName))) return res.status(400).json({ error: "Upload your CV in Profile first." });
-  if (!profile.confirmed) return res.status(400).json({ error: "Confirm your profile facts first (Profile → Confirm facts)." });
-  applying = id;
-  logs.set(id, ["Starting…"]);
-  prepare(id, llmOrNull(), { autoSubmit: settings.autoSubmit, channel: settings.browserChannel })
-    .catch((e) => {
-      logs.get(id)?.push(`Stopped: ${(e as Error).message}`);
-      setStatus(id, "error", (e as Error).message);
-    })
-    .finally(() => (applying = null));
-  res.json({ started: true });
+  const id = String(req.params.id);
+  if (!load().jobs[id]) return res.status(404).json({ error: "Job not found" });
+  const block = applyBlocker();
+  if (block) return res.status(400).json({ error: block });
+  const r = enqueue([id]);
+  if (!r.added.length) return res.status(409).json({ error: "This job is already queued, applied or skipped." });
+  res.json({ started: true, position: queued().length });
 });
 
 app.post("/api/jobs/:id/submit", wrap(async (req, res) => {
@@ -184,7 +181,26 @@ app.post("/api/jobs/:id/answers", (req, res) => {
   res.json(load().jobs[id]);
 });
 
-app.get("/api/jobs/:id/log", (req, res) => res.json({ log: logs.get(String(req.params.id)) ?? [], applying: applying === req.params.id }));
+app.get("/api/jobs/:id/log", (req, res) => {
+  const id = String(req.params.id);
+  res.json({ log: logs.get(id) ?? [], applying: currentApply() === id || queued().includes(id) });
+});
+
+// ── Assistant ──
+app.get("/api/chat", (_req, res) => res.json({ messages: load().chat, applying: currentApply(), queued: queued() }));
+app.post("/api/chat", wrap(async (req, res) => {
+  const text = String((req.body as { text?: string }).text ?? "").trim();
+  if (!text) throw new Error("Type a message first.");
+  const llm = makeLLM(load().settings);
+  res.json(await chat(llm, text));
+}));
+app.post("/api/chat/:msg/actions/:i", (req, res) => {
+  res.json(resolveAction(String(req.params.msg), Number(req.params.i), !!(req.body as { confirm?: boolean }).confirm));
+});
+app.delete("/api/chat", (_req, res) => {
+  update((s) => void (s.chat = []));
+  res.json({ ok: true });
+});
 
 app.get("/api/jobs/:id/screenshot", (req, res) => {
   const p = shotPath(String(req.params.id));

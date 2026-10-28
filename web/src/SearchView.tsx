@@ -1,6 +1,9 @@
-import { useEffect, useState } from "react";
+import { CircleAlert, LoaderCircle, Plus, Radar, ArrowRight } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import type { AppState, SearchPrefs, SourceId } from "./types";
+import type { Ctx } from "./App";
+import type { SearchPrefs, SourceId } from "./types";
+import { Switch, TagInput, useToast } from "./ui";
 
 interface Progress {
   running: boolean;
@@ -11,175 +14,218 @@ interface Progress {
   errors: string[];
 }
 
-const list = (s: string) => s.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
-
-const SOURCE_NOTES: Partial<Record<SourceId, string>> = {
-  remotive: "Remotive's robots.txt currently asks tools not to use its API, so JobPilot won't fetch it.",
-  remoteok: "Postings link back to Remote OK, as its terms ask.",
-  himalayas: "Postings link back to Himalayas, as its terms ask.",
+const SOURCE_INFO: Record<SourceId, string> = {
+  greenhouse: "Company boards on Greenhouse. No login needed to apply.",
+  lever: "Company boards on Lever.",
+  ashby: "Company boards on Ashby.",
+  himalayas: "Remote-only job board. Each job links back to Himalayas, as its terms ask.",
+  remoteok: "Remote-only job board. Each job links back to Remote OK, as its terms ask.",
+  wwr: "We Work Remotely RSS feed for your field.",
+  remotive: "Off: Remotive's robots.txt asks tools not to use its API, so JobPilot won't fetch it.",
 };
 
-export function SearchView({ state, refresh, onDone }: { state: AppState; refresh: () => Promise<void>; onDone: () => void }) {
-  const [p, setP] = useState<SearchPrefs>(state.search);
+export function SearchView({ ctx }: { ctx: Ctx }) {
+  const toast = useToast();
+  const [p, setP] = useState<SearchPrefs>(ctx.state.search);
   const [prog, setProg] = useState<Progress | null>(null);
-  const [err, setErr] = useState("");
   const [url, setUrl] = useState("");
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  const poll = async () => {
+    const r = await api<Progress>("/api/search/progress").catch(() => null);
+    if (!r) return;
+    setProg(r);
+    if (r.running) timer.current = setTimeout(poll, 1000);
+    else await ctx.refresh();
+  };
   useEffect(() => {
-    let stop = false;
-    const tick = async () => {
-      const r = await api<Progress>("/api/search/progress").catch(() => null);
-      if (stop || !r) return;
-      setProg(r);
-      if (r.running) setTimeout(tick, 1000);
-      else void refresh();
-    };
-    void tick();
-    return () => {
-      stop = true;
-    };
-  }, [refresh]);
+    void poll();
+    return () => clearTimeout(timer.current);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = (next: Partial<SearchPrefs>) => {
     const merged = { ...p, ...next };
     setP(merged);
-    void api("/api/search/prefs", merged);
+    void api("/api/search/prefs", merged).then(() => ctx.refresh());
   };
 
   const run = async () => {
-    setErr("");
     try {
       await api("/api/search/prefs", p);
       await api("/api/search/run", {});
       setProg({ running: true, log: ["Starting…"], found: 0, skipped: 0, scored: 0, errors: [] });
-      const poll = async () => {
-        const r = await api<Progress>("/api/search/progress");
-        setProg(r);
-        if (r.running) setTimeout(poll, 1000);
-        else await refresh();
-      };
-      setTimeout(poll, 800);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(poll, 700);
     } catch (e) {
-      setErr((e as Error).message);
+      toast((e as Error).message, "error");
     }
   };
 
   const addUrl = async () => {
     try {
-      await api("/api/jobs/add", { url });
+      const job = await api<{ id: string }>("/api/jobs/add", { url });
       setUrl("");
-      await refresh();
-      onDone();
+      await ctx.refresh();
+      ctx.go("todo");
+      ctx.openJob(job.id);
     } catch (e) {
-      setErr((e as Error).message);
+      toast((e as Error).message, "error");
     }
   };
 
-  const where = [state.profile.city, state.profile.country].filter(Boolean).join(", ");
+  const where = [ctx.state.profile.city, ctx.state.profile.country].filter(Boolean).join(", ");
+  const boardField = (key: "greenhouseBoards" | "leverCompanies" | "ashbyOrgs", src: SourceId, example: string) =>
+    p.sources[src] && (
+      <div style={{ padding: "0 16px 12px 16px" }}>
+        <TagInput value={p[key]} onChange={(v) => save({ [key]: v } as Partial<SearchPrefs>)} placeholder={`Board names, e.g. ${example}`} />
+      </div>
+    );
 
   return (
-    <div className="page">
-      <header className="pagehead">
-        <div>
-          <h1>Search</h1>
-          <p className="muted">
-            Pulls postings from public job boards, keeps the ones you can be hired for from {where || "your country (set it in Profile)"}, and has your AI score the fit.
-          </p>
+    <>
+      <div className="topbar">
+        <div className="title">
+          <Radar size={15} /> Find jobs
         </div>
-        <button className="btn" onClick={run} disabled={prog?.running}>
+        <div className="spacer" />
+        <button className="btn primary" onClick={run} disabled={prog?.running}>
+          {prog?.running ? <LoaderCircle size={14} className="spin" /> : <Radar size={14} />}
           {prog?.running ? "Searching…" : "Run search"}
         </button>
-      </header>
-      {err && <div className="alert red">{err}</div>}
-
-      {prog && prog.log.length > 0 && (
-        <section className="card">
-          <h3>{prog.running ? "Searching" : "Last search"}</h3>
-          <p className="small">
-            {prog.found} kept · {prog.skipped} skipped · {prog.scored} scored by AI
+      </div>
+      <div className="content">
+        <div className="page">
+          <h1>Find jobs</h1>
+          <p className="lede">
+            Pulls postings from public job boards, keeps the ones you can be hired for from <b style={{ color: "var(--text)" }}>{where || "your country (set it in Profile)"}</b>, and has your AI score how well each one fits.
           </p>
-          <pre className="log">{prog.log.slice(-14).join("\n")}</pre>
-          {!prog.running && (
-            <button className="btn ghost" onClick={onDone}>
-              See results
-            </button>
+
+          {prog && prog.log.length > 0 && (
+            <div className="runcard">
+              <div className="runhead">
+                {prog.running ? <LoaderCircle size={15} className="spin" /> : <Radar size={15} />}
+                {prog.running ? "Searching…" : "Last search"}
+                <span className="spacer" style={{ flex: 1 }} />
+                {!prog.running && prog.found > 0 && (
+                  <button className="btn sm primary" onClick={() => ctx.go("todo")}>
+                    Review {prog.found} jobs <ArrowRight size={12} />
+                  </button>
+                )}
+              </div>
+              <div className="stats">
+                <div>
+                  <b>{prog.found}</b>
+                  <span>kept</span>
+                </div>
+                <div>
+                  <b>{prog.skipped}</b>
+                  <span>skipped</span>
+                </div>
+                <div>
+                  <b>{prog.scored}</b>
+                  <span>scored by AI</span>
+                </div>
+              </div>
+              <div className="runlog">{prog.log.slice(-40).join("\n")}</div>
+            </div>
           )}
-        </section>
-      )}
 
-      <section className="card">
-        <h3>What you're looking for</h3>
-        <label className="field">
-          <span>Job titles (comma-separated)</span>
-          <input defaultValue={p.titles.join(", ")} onBlur={(e) => save({ titles: list(e.target.value) })} placeholder="product designer, ux designer" />
-          <span className="muted small">A posting matches when its title contains every word of one of these.</span>
-        </label>
-        <label className="field">
-          <span>Leave out titles containing</span>
-          <input defaultValue={p.excludeKeywords.join(", ")} onBlur={(e) => save({ excludeKeywords: list(e.target.value) })} placeholder="intern, principal" />
-        </label>
-        <div className="grid2">
-          <label className="field">
-            <span>Posted within (days)</span>
-            <input type="number" value={p.maxAgeDays} onChange={(e) => save({ maxAgeDays: +e.target.value })} />
-          </label>
-          <label className="field">
-            <span>Score at most (jobs per search)</span>
-            <input type="number" value={p.maxToScore} onChange={(e) => save({ maxToScore: +e.target.value })} />
-            <span className="muted small">Each scored job is one AI call on your key.</span>
-          </label>
-        </div>
-        <p className="muted small">
-          Location rules come from your Profile: country of residence, where you're authorised to work, and whether you take contractor roles. Roles open worldwide, to your region (e.g. EMEA), or to
-          contractors anywhere are kept; roles limited to countries where you lack authorisation are skipped, with the exact wording saved as evidence.
-        </p>
-      </section>
+          <div className="group-title">What you're looking for</div>
+          <p className="group-desc">Your brief guides the AI when it scores fit. Titles decide which postings are considered at all.</p>
+          <div className="box">
+            <div className="srow stack">
+              <div className="l">
+                <b>Your brief</b>
+                <span>In your own words: seniority, industries, what you want more or less of. You can also tell the Assistant.</span>
+              </div>
+              <textarea rows={3} defaultValue={p.brief ?? ""} onBlur={(e) => e.target.value !== (p.brief ?? "") && save({ brief: e.target.value })} placeholder="e.g. Senior product designer roles at fintech or B2B SaaS companies, remote, open to contractors in Africa. No agencies." />
+            </div>
+            <div className="srow stack">
+              <div className="l">
+                <b>Job titles</b>
+                <span>A posting matches when its title contains every word of one of these.</span>
+              </div>
+              <TagInput value={p.titles} onChange={(v) => save({ titles: v })} placeholder="product designer, ux designer…" />
+            </div>
+            <div className="srow stack">
+              <div className="l">
+                <b>Leave out titles containing</b>
+              </div>
+              <TagInput value={p.excludeKeywords} onChange={(v) => save({ excludeKeywords: v })} placeholder="intern, principal…" />
+            </div>
+            <div className="srow">
+              <div className="l">
+                <b>Posted within</b>
+                <span>Older postings are ignored.</span>
+              </div>
+              <div className="r">
+                <select value={p.maxAgeDays} onChange={(e) => save({ maxAgeDays: +e.target.value })} style={{ width: 160 }}>
+                  {[7, 14, 30, 60, 90].map((d) => (
+                    <option key={d} value={d}>
+                      {d} days
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="srow">
+              <div className="l">
+                <b>AI scoring limit</b>
+                <span>Each scored job is one call on your AI key.</span>
+              </div>
+              <div className="r">
+                <select value={p.maxToScore} onChange={(e) => save({ maxToScore: +e.target.value })} style={{ width: 160 }}>
+                  {[10, 20, 40, 80, 150].map((d) => (
+                    <option key={d} value={d}>
+                      {d} jobs per search
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
 
-      <section className="card">
-        <h3>Sources</h3>
-        {(Object.keys(state.sources) as SourceId[]).map((id) => (
-          <label key={id} className="toggle">
-            <input type="checkbox" checked={!!p.sources[id]} onChange={(e) => save({ sources: { ...p.sources, [id]: e.target.checked } })} />
+          <div className="group-title">Location rules</div>
+          <div className="callout" style={{ marginTop: 6 }}>
+            <CircleAlert size={14} color="var(--muted)" />
             <span>
-              {state.sources[id]}
-              {SOURCE_NOTES[id] && (
-                <>
-                  <br />
-                  <span className="muted small">{SOURCE_NOTES[id]}</span>
-                </>
-              )}
+              These come from your Profile: where you live, where you're authorised to work, and whether you take contractor roles. Roles open worldwide, to your region (for example EMEA), or to contractors anywhere are kept. Roles limited to places where you can't legally work are skipped, and the posting's exact words are saved as evidence.
             </span>
-          </label>
-        ))}
-        <div className="grid3">
-          <label className="field">
-            <span>Greenhouse boards</span>
-            <textarea rows={4} defaultValue={p.greenhouseBoards.join("\n")} onBlur={(e) => save({ greenhouseBoards: list(e.target.value) })} />
-          </label>
-          <label className="field">
-            <span>Lever companies</span>
-            <textarea rows={4} defaultValue={p.leverCompanies.join("\n")} onBlur={(e) => save({ leverCompanies: list(e.target.value) })} />
-          </label>
-          <label className="field">
-            <span>Ashby boards</span>
-            <textarea rows={4} defaultValue={p.ashbyOrgs.join("\n")} onBlur={(e) => save({ ashbyOrgs: list(e.target.value) })} />
-          </label>
-        </div>
-        <p className="muted small">
-          A board name is the bit of the company's careers URL after the ATS domain, e.g. <code>boards.greenhouse.io/<b>gitlab</b></code>, <code>jobs.lever.co/<b>toptal</b></code>,{" "}
-          <code>jobs.ashbyhq.com/<b>zapier</b></code>. One per line.
-        </p>
-      </section>
+          </div>
 
-      <section className="card">
-        <h3>Add one job by link</h3>
-        <div className="row">
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://job-boards.greenhouse.io/…" />
-          <button className="btn ghost" onClick={addUrl} disabled={!url}>
-            Add
-          </button>
+          <div className="group-title">Sources</div>
+          <p className="group-desc">Only public APIs and feeds. JobPilot follows each site's robots.txt and waits between requests.</p>
+          <div className="box">
+            {(Object.keys(ctx.state.sources) as SourceId[]).map((id) => (
+              <div key={id}>
+                <div className="srcrow">
+                  <div className="l">
+                    <b>{ctx.state.sources[id]}</b>
+                    <span>{SOURCE_INFO[id]}</span>
+                  </div>
+                  <Switch label={ctx.state.sources[id]} checked={!!p.sources[id]} onChange={(v) => save({ sources: { ...p.sources, [id]: v } })} />
+                </div>
+                {id === "greenhouse" && boardField("greenhouseBoards", "greenhouse", "gitlab")}
+                {id === "lever" && boardField("leverCompanies", "lever", "toptal")}
+                {id === "ashby" && boardField("ashbyOrgs", "ashby", "zapier")}
+              </div>
+            ))}
+          </div>
+          <p className="group-desc" style={{ marginTop: 8 }}>
+            A board name is the part of a careers link after the ATS domain: <code>boards.greenhouse.io/gitlab</code>, <code>jobs.lever.co/toptal</code>, <code>jobs.ashbyhq.com/zapier</code>.
+          </p>
+
+          <div className="group-title">Add one job by link</div>
+          <div className="box">
+            <div className="srow">
+              <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://job-boards.greenhouse.io/…" onKeyDown={(e) => e.key === "Enter" && url && addUrl()} />
+              <button className="btn" onClick={addUrl} disabled={!url}>
+                <Plus size={13} /> Add
+              </button>
+            </div>
+          </div>
         </div>
-      </section>
-    </div>
+      </div>
+    </>
   );
 }

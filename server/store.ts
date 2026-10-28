@@ -50,6 +50,7 @@ export function defaultProfile(): Profile {
 
 export function defaultSearch(): SearchPrefs {
   return {
+    brief: "",
     titles: ["product designer"],
     excludeKeywords: ["intern"],
     jobTypes: ["full_time", "contract"],
@@ -82,6 +83,7 @@ export function load(): Store {
     profile: { ...defaultProfile(), ...raw.profile },
     search: { ...defaultSearch(), ...raw.search },
     jobs: raw.jobs ?? {},
+    chat: raw.chat ?? [],
   };
   return cache;
 }

@@ -66,7 +66,7 @@ const SCORE_SCHEMA = {
   required: ["fit", "why_fit", "eligibility", "evidence", "reason", "job_type"],
 };
 
-export async function scoreJob(llm: LLM, job: Pick<Job, "title" | "company" | "location" | "description">, p: Profile): Promise<Score> {
+export async function scoreJob(llm: LLM, job: Pick<Job, "title" | "company" | "location" | "description">, p: Profile, brief = ""): Promise<Score> {
   return llm.json<Score>({
     schemaName: "job_score",
     schema: SCORE_SCHEMA,
@@ -79,7 +79,7 @@ export async function scoreJob(llm: LLM, job: Pick<Job, "title" | "company" | "l
     messages: [
       {
         role: "user",
-        content: `Candidate:\n${profileBrief(p)}\n\nPosting: ${job.title} at ${job.company}\nLocation field: ${job.location || "(none)"}\n${untrusted("job_posting", job.description, 9000)}`,
+        content: `Candidate:\n${profileBrief(p)}${brief ? `\nWhat the candidate is looking for (score fit against this too): ${brief}` : ""}\n\nPosting: ${job.title} at ${job.company}\nLocation field: ${job.location || "(none)"}\n${untrusted("job_posting", job.description, 9000)}`,
       },
     ],
   });
@@ -169,7 +169,7 @@ export async function runSearch(llm: LLM | null): Promise<void> {
         while (i < batch.length) {
           const job = batch[i++];
           try {
-            const s = await scoreJob(llm, job, p);
+            const s = await scoreJob(llm, job, p, prefs.brief);
             progress.scored++;
             applyScore(job, s);
             if (job.status === "found") progress.found++;

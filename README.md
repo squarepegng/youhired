@@ -22,10 +22,28 @@ npm start
 
 Then open **http://localhost:5173**. The sidebar has a four-step checklist to get you set up:
 
-1. **Settings**: pick a provider and model, paste your API key, then press **Save & test connection**.
-2. **Profile**: upload your CV (PDF or DOCX). Your AI reads it and fills in your experience. Then fill in the facts only you can confirm and press **Confirm facts**.
-3. **Search**: set job titles and press **Run search**.
-4. **Jobs & tracker**: open a job and press **Apply**.
+1. **Settings**: pick a provider and model, paste your API key, then press **Save & test**.
+2. **Profile**: upload your CV (PDF or DOCX). Your AI reads it and fills in your experience. Then fill in the facts only you can confirm and press **Confirm facts**. Changes save automatically.
+3. **Assistant**: tell it the kind of job you want, in your own words.
+4. **Inbox**: check what needs you, then submit.
+
+## Getting around
+
+- **Assistant.** A chat where you say what you want and JobPilot does it. Try "I'm a senior product designer, I want fintech roles that hire in Africa. Find them and apply to the best ones." It can:
+  - save your brief, which steers how the AI scores fit
+  - change the job titles it searches for
+  - run a search
+  - fill applications for the jobs you pick
+  - skip jobs
+  - answer questions like "what's waiting on me?" or "why was this skipped?"
+
+  Each step it takes shows as a card in the chat, with live status for each job. Filled applications still wait for your review. If auto-submit is on, it asks you to confirm before applying, and it also asks before skipping more than five jobs. It can't change your profile facts.
+- **Inbox.** Everything that needs you: questions only you can answer, and forms that are filled and waiting to be submitted.
+- **Find jobs.** Your brief, job titles, sources and company boards, plus the live search log.
+- **To apply / Applied / Do it yourself / Skipped / All jobs.** The tracker, grouped by status. Click a job to open it beside the list. The panel shows the next step (fill, answer, submit, or open the link yourself), the evidence about where they hire, the answers filled in, a screenshot and the activity log.
+- **Keyboard.** <kbd>⌘K</kbd> opens a command menu that jumps to any page or job. In job lists, <kbd>J</kbd>/<kbd>K</kbd> moves between jobs, <kbd>Esc</kbd> closes the panel and <kbd>/</kbd> filters.
+
+Applications run one at a time from a queue, so you can line up several and leave them to finish.
 
 The app only listens on `localhost`, so nobody else on your network can reach it.
 
@@ -153,12 +171,13 @@ In testing, the Canonical forms were correctly routed to "do it yourself" becaus
 npm test
 ```
 
-There are 103 tests covering:
+There are 109 tests covering:
 
 - **Provider adapters**, with the SDKs mocked: request shapes, JSON schema, images, refusals, errors that don't leak keys.
 - **Field mapping**: names, location, authorisation, sponsorship, salary rules, EEO, consent, saved answers.
 - **Eligibility**: worldwide, EMEA, US-only, timezone windows, AI quotes that aren't in the posting.
 - **Guardrails**: hidden instructions, AI-screening wording, invented numbers, never-apply, robots.txt.
+- **Assistant actions**: brief and search updates, queued applications, confirmation when auto-submit is on, no applying before the profile is ready, untrusted job text.
 
 ```bash
 npm run typecheck
@@ -174,6 +193,7 @@ server/
   sources/            Greenhouse, Lever, Ashby, Himalayas, Remote OK, WWR, Remotive; polite HTTP
   eligibility.ts      location rules
   search.ts           fetch → filter → AI score → tracker
+  assistant.ts        the chat: reply + actions (brief, search, apply, skip)
   cv.ts               CV text extraction + AI profile extraction
   guardrails.ts       injection / AI-screening / login detection, answer checks
   apply/
@@ -182,6 +202,7 @@ server/
     answers.ts        AI answers grounded in the CV, with checks
     filler.ts         typing, dropdowns, uploads, submit, success detection
     runner.ts         the whole apply flow
+    queue.ts          runs applications one at a time
   tracker.ts          CSV export
 web/src/              React UI
 tests/                vitest

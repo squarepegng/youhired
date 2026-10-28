@@ -45,6 +45,7 @@ export interface Profile {
 export type SourceId = "greenhouse" | "lever" | "ashby" | "remotive" | "remoteok" | "himalayas" | "wwr";
 
 export interface SearchPrefs {
+  brief?: string;
   titles: string[];
   excludeKeywords: string[];
   jobTypes: string[];
@@ -81,6 +82,7 @@ export interface Job {
   pending?: { fieldId: string; label: string; required: boolean; options?: string[]; hint?: string }[];
   coverNote?: string;
   hasSession?: boolean;
+  working?: boolean;
 }
 
 export interface ProviderInfo {

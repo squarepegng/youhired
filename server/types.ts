@@ -64,6 +64,7 @@ export interface Profile {
 }
 
 export interface SearchPrefs {
+  brief: string; // the user's own description of the job they want; guides AI fit scoring
   titles: string[]; // e.g. ["product designer", "ux designer"]
   excludeKeywords: string[]; // e.g. ["senior staff", "intern"]
   jobTypes: ("full_time" | "contract" | "part_time")[];
@@ -128,7 +129,23 @@ export interface Job {
   coverNote?: string;
 }
 
+export interface ChatAction {
+  type: "set_brief" | "update_search" | "run_search" | "apply_jobs" | "skip_jobs" | "open_job";
+  summary: string; // plain-language line shown in the chat
+  status: "done" | "needs_confirm" | "cancelled" | "failed";
+  data: Record<string, unknown>;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  at: string;
+  actions?: ChatAction[];
+}
+
 export interface Store {
+  chat: ChatMessage[];
   settings: Settings;
   profile: Profile;
   search: SearchPrefs;
