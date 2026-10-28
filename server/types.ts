@@ -62,6 +62,9 @@ export interface Profile {
   savedAnswers: { question: string; answer: string }[];
   cvFileName: string;
   cvText: string;
+  linkedinText: string; // from LinkedIn's "Save to PDF" export, if uploaded
+  portfolioText: string; // read from your portfolio site
+  currentCompensation: string; // e.g. "₦18,000,000 per year": used for "current/most recent CTC" questions
   confirmed: boolean;
 }
 
@@ -104,6 +107,7 @@ export interface PendingQuestion {
   label: string;
   required: boolean;
   options?: string[];
+  draft?: string; // AI draft from your CV/LinkedIn/portfolio, for you to approve
   hint?: string;
   answer?: string;
 }

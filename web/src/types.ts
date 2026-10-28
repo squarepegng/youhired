@@ -40,6 +40,9 @@ export interface Profile {
   savedAnswers: { question: string; answer: string }[];
   cvFileName: string;
   cvText: string;
+  linkedinText?: string;
+  portfolioText?: string;
+  currentCompensation?: string;
   confirmed: boolean;
 }
 
@@ -84,7 +87,7 @@ export interface Job {
   statusDate: string;
   foundAt: string;
   answers?: { label: string; value: string; source: string }[];
-  pending?: { fieldId: string; label: string; required: boolean; options?: string[]; hint?: string }[];
+  pending?: { fieldId: string; label: string; required: boolean; options?: string[]; hint?: string; draft?: string }[];
   coverNote?: string;
   handoff?: "captcha" | "own_words";
   hasSession?: boolean;

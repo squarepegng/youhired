@@ -44,6 +44,9 @@ export function defaultProfile(): Profile {
     savedAnswers: [],
     cvFileName: "",
     cvText: "",
+    linkedinText: "",
+    portfolioText: "",
+    currentCompensation: "",
     confirmed: false,
   };
 }

@@ -9,7 +9,8 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
   const toast = useToast();
   const [log, setLog] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  // Pre-fill with the AI's drafts (from your CV, LinkedIn and portfolio): you approve or edit.
+  const [answers, setAnswers] = useState<Record<string, string>>(() => Object.fromEntries((job.pending ?? []).filter((q) => q.draft).map((q) => [q.label, q.draft!])));
   const [showPosting, setShowPosting] = useState(false);
   const [shotKey, setShotKey] = useState(0);
   const id = encodeURIComponent(job.id);
@@ -59,6 +60,11 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
       setBusy(true);
     }, "Opening the application in the browser…");
   const submit = () => run(() => api(`/api/jobs/${id}/submit`, {}));
+  const applyAnyway = () =>
+    run(async () => {
+      await api(`/api/jobs/${id}/apply-anyway`, {});
+      setBusy(true);
+    }, "Applying anyway, with truthful answers about where you can work.");
   const finish = () =>
     run(async () => {
       const r = await api<{ mode: string }>(`/api/jobs/${id}/finish`, {});
@@ -98,7 +104,7 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
           <span className="faint">· via {ctx.state.sources[job.source] ?? job.source}</span>
         </div>
 
-        <NextStep background={!!ctx.state.settings.background} job={job} busy={busy} apply={apply} submit={submit} finish={finish} setStatus={setStatus} answers={answers} setAnswers={setAnswers} saveAnswers={saveAnswers} pendingDone={pendingDone} />
+        <NextStep applyAnyway={applyAnyway} autoSubmit={!!ctx.state.settings.autoSubmit} background={!!ctx.state.settings.background} job={job} busy={busy} apply={apply} submit={submit} finish={finish} setStatus={setStatus} answers={answers} setAnswers={setAnswers} saveAnswers={saveAnswers} pendingDone={pendingDone} />
 
         <dl className="props">
           <dt>
@@ -223,12 +229,14 @@ function sourceLabel(s: string): string {
 }
 
 function NextStep(p: {
+  autoSubmit: boolean;
   background: boolean;
   job: Job;
   busy: boolean;
   apply: () => void;
   submit: () => void;
   finish: () => void;
+  applyAnyway: () => void;
   setStatus: (s: Job["status"], reason: string, ok: string) => void;
   answers: Record<string, string>;
   setAnswers: (a: Record<string, string>) => void;
@@ -300,13 +308,18 @@ function NextStep(p: {
             <CircleAlert size={15} color="var(--amber)" /> {job.pending?.length ?? 0} question{(job.pending?.length ?? 0) === 1 ? "" : "s"} only you can answer
           </div>
           <p>
-            {job.handoff === "own_words"
-              ? "This employer doesn't accept AI-written answers, so JobPilot filled your details and left these for you. Write them in your own words; JobPilot puts them in the form and submits."
-              : "JobPilot never guesses. Your answers are saved to your profile and reused on future forms."}
+            {(job.pending ?? []).some((q) => q.draft)
+              ? job.handoff === "own_words"
+                ? "Your details are filled. Your AI drafted these from your CV, LinkedIn and portfolio. This employer says it disqualifies AI-written answers, so read them and make them yours before approving."
+                : "Your details are filled. Your AI drafted these from your CV, LinkedIn and portfolio. Check them and approve."
+              : "JobPilot never guesses facts only you know. Answer once: it's saved to your profile and reused on every future form."}
           </p>
           {(job.pending ?? []).map((q) => (
             <div className="question" key={q.fieldId}>
-              <label htmlFor={q.fieldId}>{q.label}</label>
+              <label htmlFor={q.fieldId}>
+                {q.label}
+                {q.draft && p.answers[q.label] === q.draft && <span className="draftchip">AI draft</span>}
+              </label>
               {q.hint && <div className="hint">{q.hint}</div>}
               {q.options?.length ? (
                 <select id={q.fieldId} value={p.answers[q.label] ?? ""} onChange={(e) => p.setAnswers({ ...p.answers, [q.label]: e.target.value })}>
@@ -316,13 +329,13 @@ function NextStep(p: {
                   ))}
                 </select>
               ) : (
-                <textarea id={q.fieldId} rows={2} value={p.answers[q.label] ?? ""} onChange={(e) => p.setAnswers({ ...p.answers, [q.label]: e.target.value })} />
+                <textarea id={q.fieldId} rows={q.draft ? 4 : 2} value={p.answers[q.label] ?? ""} onChange={(e) => p.setAnswers({ ...p.answers, [q.label]: e.target.value })} />
               )}
             </div>
           ))}
           <div className="actions">
             <button className="btn primary" disabled={!p.pendingDone} onClick={p.saveAnswers}>
-              Save & continue
+              {p.autoSubmit ? "Approve & submit" : "Approve & fill"}
             </button>
             {skip}
           </div>
@@ -390,7 +403,13 @@ function NextStep(p: {
             <StatusIcon status="skipped" /> Skipped
           </div>
           <p>{job.statusReason}</p>
+          {job.eligibility?.verdict === "ineligible" && <p className="small">Apply anyway if you think they might make an exception (some hire contractors outside their listed countries). JobPilot still answers location and work-authorisation questions truthfully.</p>}
           <div className="actions">
+            {job.eligibility?.verdict === "ineligible" && (
+              <button className="btn primary" onClick={p.applyAnyway} title="JobPilot applies with truthful answers about where you can work; the employer decides">
+                Apply anyway
+              </button>
+            )}
             <button className="btn" onClick={() => p.setStatus("found", "Moved back by you", "Moved to To apply")}>
               <Undo2 size={13} /> Move to To apply
             </button>

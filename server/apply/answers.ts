@@ -36,15 +36,30 @@ const SCHEMA = {
   required: ["answers", "cover_note"],
 };
 
+/** Everything JobPilot knows about you from your own documents: CV, LinkedIn export, portfolio site. */
+export function knowledge(p: Profile, max = 30000): string {
+  return [
+    p.cvText ? `<cv>\n${p.cvText}\n</cv>` : "",
+    p.linkedinText ? `<linkedin_profile>\n${p.linkedinText}\n</linkedin_profile>` : "",
+    p.portfolioText ? `<portfolio_site>\n${p.portfolioText}\n</portfolio_site>` : "",
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .slice(0, max);
+}
+
 export function groundTruth(p: Profile): string {
-  const { savedAnswers, cvText, ...rest } = p;
+  const { savedAnswers, cvText, linkedinText, portfolioText, ...rest } = p;
   void savedAnswers;
-  return `${JSON.stringify({ ...rest, cvText: undefined })}\n${cvText}\n${p.savedAnswers.map((s) => `${s.question}: ${s.answer}`).join("\n")}`;
+  void cvText;
+  void linkedinText;
+  void portfolioText;
+  return `${JSON.stringify(rest)}\n${knowledge(p, 200000)}\n${p.savedAnswers.map((s) => `${s.question}: ${s.answer}`).join("\n")}`;
 }
 
 const SYSTEM = [
   "You fill in job application questions for one candidate, in their voice (first person, plain and warm, no clichés, no em dashes).",
-  "Use ONLY facts from the candidate's profile and CV below. Never invent employers, projects, tools, metrics, numbers, dates or experience.",
+  "Use ONLY facts from the candidate's profile, CV, LinkedIn and portfolio below. Never invent employers, projects, tools, metrics, numbers, dates or experience.",
   "If a question asks about something the CV doesn't clearly show (e.g. 'Have you used a crypto wallet?', 'Have you shipped React Native?', years with a specific tool), set can_answer=false, leave answer empty and write question_for_user as a short plain question to the candidate.",
   "Never answer questions about location, work authorisation, visas, salary, age, criminal record or demographics; set can_answer=false for those.",
   "For questions with options, the answer must be exactly one of the options (or for multi-select, options joined by ' | ').",
@@ -75,7 +90,7 @@ export async function writeAnswers(
         role: "user",
         content: [
           `Candidate profile (trusted):\n${JSON.stringify({ name: p.preferredName || p.legalName, headline: p.headline, summary: p.summary, years: p.yearsExperience, skills: p.skills, experience: p.experience, education: p.education, links: p.links })}`,
-          `CV text (trusted):\n<cv>\n${p.cvText.slice(0, 30000)}\n</cv>`,
+          `The candidate's own documents (trusted):\n${knowledge(p)}`,
           p.savedAnswers.length ? `Answers the candidate gave before (trusted):\n${p.savedAnswers.map((s) => `- ${s.question}: ${s.answer}`).join("\n")}` : "",
           `Role: ${job.title} at ${job.company}`,
           untrusted("job_posting", job.description, 8000),
@@ -143,4 +158,24 @@ export async function answerWithChecks(llm: LLM, p: Profile, job: Job, fields: M
   }
   if (!out.coverNote) out.warnings.push("Cover note failed the checks; none will be used.");
   return out;
+}
+
+/**
+ * Draft answers for open questions the candidate has to approve (e.g. employers that ban AI-written answers).
+ * Drafts are grounded in the candidate's documents and checked like any other answer; they are only sent
+ * after the candidate approves them.
+ */
+export async function draftPending(llm: LLM, p: Profile, job: Job, pending: { fieldId: string; label: string; options?: string[]; draft?: string }[]): Promise<void> {
+  const open = pending.filter((q) => !q.options?.length);
+  if (!open.length) return;
+  const fields: Mapped[] = open.map((q) => ({ field: { id: q.fieldId, frame: 0, kind: "textarea", label: q.label, name: "", required: true, options: [], value: "" }, value: null, source: "ai", need: "ai" }));
+  try {
+    const res = await answerWithChecks(llm, p, job, fields);
+    for (const q of open) {
+      const a = res.answers.get(q.fieldId);
+      if (a) q.draft = a.value;
+    }
+  } catch {
+    /* drafts are a convenience; the questions still stand */
+  }
 }

@@ -11,6 +11,7 @@ import { PROVIDERS, makeLLM, testConnection } from "./providers/index.js";
 import { progress, runSearch } from "./search.js";
 import { SOURCE_LABELS } from "./sources/index.js";
 import { DATA_DIR, load, maskKey, setStatus, update } from "./store.js";
+import { readPortfolio } from "./portfolio.js";
 import { SITES, disconnect, markConnected, openSignIn } from "./sites.js";
 import { toCsv } from "./tracker.js";
 import type { Job, Profile, SearchPrefs, Settings } from "./types.js";
@@ -90,6 +91,25 @@ app.post("/api/cv", upload.single("cv"), wrap(async (req, res) => {
   res.json({ profile: s.profile, locationOnCv: x.location_on_cv });
 }));
 
+// LinkedIn's own "Save to PDF" export: more about you for the AI to draw on.
+app.post("/api/linkedin", upload.single("file"), wrap(async (req, res) => {
+  const file = req.file;
+  if (!file || !/\.pdf$/i.test(file.originalname)) throw new Error("Upload the PDF from LinkedIn → your profile → More → Save to PDF.");
+  const text = await cvToText(file.buffer, "linkedin.pdf");
+  const s = update((st) => void (st.profile.linkedinText = text));
+  res.json({ chars: text.length, profile: s.profile });
+}));
+
+app.post("/api/portfolio/read", wrap(async (_req, res) => {
+  const p = load().profile;
+  const url = p.links.portfolio || p.links.website;
+  if (!url) throw new Error("Add your portfolio or website link first (Profile → Links & EEO).");
+  const r = await readPortfolio(url);
+  if (r.text.length < 100) throw new Error("Couldn't read much from that site. It may be built in a way that needs a browser to render.");
+  const s = update((st) => void (st.profile.portfolioText = r.text));
+  res.json({ pages: r.pages.length, chars: r.text.length, profile: s.profile });
+}));
+
 app.post("/api/search/prefs", (req, res) => {
   const s = update((st) => {
     st.search = { ...st.search, ...(req.body as Partial<SearchPrefs>) };
@@ -151,6 +171,23 @@ app.post("/api/apply-batch", (req, res) => {
   const block = applyBlocker();
   if (block) return res.status(400).json({ error: block });
   res.json(enqueue(ids));
+});
+
+/** You chose to apply even though the posting limits where they hire. Answers stay truthful. */
+app.post("/api/jobs/:id/apply-anyway", (req, res) => {
+  const id = String(req.params.id);
+  const j = load().jobs[id];
+  if (!j) return res.status(404).json({ error: "Job not found" });
+  update((s) => {
+    const job = s.jobs[id];
+    job.flags = [...new Set([...job.flags, "apply-anyway"])];
+    job.status = "found";
+    job.statusReason = "You chose to apply anyway. JobPilot answers location and work-authorisation questions truthfully.";
+    job.statusDate = new Date().toISOString();
+  });
+  const block = applyBlocker();
+  if (block) return res.status(400).json({ error: block });
+  res.json(enqueue([id]));
 });
 
 /** Finish a job that needs one human step (a CAPTCHA): show the window, or reopen it filled, and wait. */

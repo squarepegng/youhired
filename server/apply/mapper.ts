@@ -264,6 +264,11 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
   if (/relocat/.test(l)) return { field: f, value: null, source: "user", need: "user" };
 
   // Salary, notice
+  // Current / most recent pay ("CTC") is a fact only you know: from your profile, never guessed.
+  if (/\bctc\b|current (?:salary|compensation|pay|package|ctc)|most recent (?:salary|compensation|pay|ctc)|present (?:salary|ctc)|last drawn/.test(l)) {
+    if (p.currentCompensation) return ret(f.options.length ? pickOption(f.options, [p.currentCompensation]) : p.currentCompensation, "profile");
+    return { field: f, value: null, source: "user", need: "user", note: "Add your current pay under Profile → Salary once, and JobPilot fills it everywhere" };
+  }
   if (!/review|read|aware|understand|acknowledge/.test(l) && /salary|compensation|pay expectation|expected (?:pay|rate)|desired (?:pay|rate)|rate expectation|hourly rate/.test(l)) return salaryValue(f, p, job);
   if (/notice period|when can you start|start date|earliest (?:start|availability)|available to start/.test(l)) return ret(p.noticePeriod || null);
 

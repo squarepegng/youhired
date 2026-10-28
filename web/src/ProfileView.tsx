@@ -53,6 +53,33 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
     toast("Facts confirmed. JobPilot will only use them as written.");
   };
 
+  const [reading, setReading] = useState(false);
+  const uploadLinkedIn = async (file: File) => {
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await api<{ profile: Profile }>("/api/linkedin", fd);
+      setP(r.profile);
+      await ctx.refresh();
+      toast("LinkedIn profile read.");
+    } catch (e) {
+      toast((e as Error).message, "error");
+    }
+  };
+  const readSite = async () => {
+    setReading(true);
+    try {
+      await api("/api/profile", p);
+      const r = await api<{ profile: Profile; pages: number }>("/api/portfolio/read", {});
+      setP(r.profile);
+      await ctx.refresh();
+      toast(`Read ${r.pages} page${r.pages === 1 ? "" : "s"} from your site.`);
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setReading(false);
+    }
+  };
   const upload = async (file: File) => {
     setUploading(true);
     try {
@@ -149,6 +176,34 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
                   <span>{p.cvFileName ? "Click to replace. This exact file is attached to applications." : "PDF or DOCX. Your AI reads it once to learn your experience."}</span>
                 </div>
               </label>
+
+              <div className="group-title">More about you</div>
+              <p className="group-desc">The more JobPilot knows, the more questions it answers by itself. Everything stays on this Mac.</p>
+              <div className="box">
+                <div className="srow">
+                  <div className="l">
+                    <b>LinkedIn profile</b>
+                    <span>{p.linkedinText ? `Read (${Math.round(p.linkedinText.length / 1000)}k characters). Upload again to refresh.` : "On LinkedIn, open your profile → More → Save to PDF, then upload that file here."}</span>
+                  </div>
+                  <div className="r">
+                    <label className="btn">
+                      <input type="file" accept=".pdf" hidden onChange={(e) => e.target.files?.[0] && uploadLinkedIn(e.target.files[0])} />
+                      <Upload size={13} /> {p.linkedinText ? "Replace PDF" : "Upload PDF"}
+                    </label>
+                  </div>
+                </div>
+                <div className="srow">
+                  <div className="l">
+                    <b>Portfolio site</b>
+                    <span>{p.portfolioText ? `Read (${Math.round(p.portfolioText.length / 1000)}k characters from ${p.links.portfolio || p.links.website}).` : p.links.portfolio || p.links.website ? `JobPilot reads ${p.links.portfolio || p.links.website} so it knows your projects.` : "Add your portfolio link under Links & EEO first."}</span>
+                  </div>
+                  <div className="r">
+                    <button className="btn" disabled={!(p.links.portfolio || p.links.website) || reading} onClick={readSite}>
+                      {reading ? <LoaderCircle size={13} className="spin" /> : <FileText size={13} />} {p.portfolioText ? "Read again" : "Read my site"}
+                    </button>
+                  </div>
+                </div>
+              </div>
 
               <div className="group-title">Summary</div>
               <p className="group-desc">Pulled from your CV by your AI. Edit freely. Written answers can only use what's here and in the CV.</p>
@@ -319,6 +374,19 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
                   <input value={p.salary.textAnswer} onChange={(e) => set({ salary: { ...p.salary, textAnswer: e.target.value } })} />
                 </div>
               </div>
+              <div className="group-title">Current pay</div>
+              <div className="box">
+                <div className="srow">
+                  <div className="l">
+                    <b>Current or most recent compensation</b>
+                    <span>For "current CTC" / "current salary" questions. Only you know this; enter it once and JobPilot fills it everywhere.</span>
+                  </div>
+                  <div className="r">
+                    <input value={p.currentCompensation ?? ""} onChange={(e) => set({ currentCompensation: e.target.value })} placeholder="e.g. ₦18,000,000 per year" />
+                  </div>
+                </div>
+              </div>
+
               <div className="group-title">Availability</div>
               <div className="box">
                 <div className="srow">

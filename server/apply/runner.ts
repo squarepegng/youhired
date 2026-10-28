@@ -12,7 +12,7 @@ import { findEmployerForm } from "../sources/index.js";
 import { DATA_DIR, cvPath, load, update } from "../store.js";
 import type { Job, PendingQuestion } from "../types.js";
 import { type AgentResult, runAgent } from "./agent.js";
-import { answerWithChecks } from "./answers.js";
+import { answerWithChecks, draftPending } from "./answers.js";
 import { detectBlocker, getContext, hiddenText, isHeadless, pageText, readForm } from "./browser.js";
 import { fillField, findSubmit, looksSubmitted, peekComboOptions, visibleErrors } from "./filler.js";
 import { type FormField, type Mapped, mapAll, normQ } from "./mapper.js";
@@ -87,7 +87,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
     if (hit) {
       log(id, `Found it on ${hit.ats}: ${hit.applyUrl}`);
       const own = checkLocation(hit.location, p, "");
-      if (own.verdict === "ineligible") {
+      if (own.verdict === "ineligible" && !job.flags.includes("apply-anyway")) {
         job.eligibility = { ...own, reason: `${own.reason} (the employer's own posting; the job board said "${job.location}")` };
         log(id, `The employer's posting says "${hit.location}". Not open to you, so JobPilot won't apply.`);
         return save(job, "skipped", job.eligibility.reason);
@@ -211,6 +211,10 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   job.pending = pending;
   job.answers = summarise(mapped, coverNote);
   if (ownWords && pending.length) job.handoff = "own_words";
+  if (pending.length && llm) {
+    log(id, "Drafting answers from your CV, LinkedIn and portfolio for you to approve…");
+    await draftPending(llm, p, job, pending);
+  }
   if (pending.length && !opts.fillEvenIfPending) {
     for (const q of pending) log(id, `Needs your answer: ${q.label}`);
     await page.close().catch(() => {});
@@ -293,6 +297,8 @@ async function finishWithAgent(job: Job, page: Page, llm: LLM, p: ReturnType<typ
       }
       job.pending = r.questions.map((q, i) => ({ fieldId: `agent-${i}`, label: q.label, required: true, options: q.options.length ? q.options : undefined }));
       for (const q of job.pending) log(id, `Needs your answer: ${q.label}`);
+      log(id, "Drafting answers from your CV, LinkedIn and portfolio for you to approve…");
+      await draftPending(llm, p, job, job.pending);
       await pg.close().catch(() => {});
       sessions.delete(id);
       return save(job, "needs_answer", r.reason);

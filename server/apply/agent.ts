@@ -18,7 +18,7 @@ import type { Page } from "playwright";
 import { UNTRUSTED_RULE, containsPlantedWord, detectAiScreening, detectInjection, inventedNumbers, untrusted } from "../guardrails.js";
 import type { LLM } from "../providers/types.js";
 import type { Job, Profile } from "../types.js";
-import { groundTruth } from "./answers.js";
+import { groundTruth, knowledge } from "./answers.js";
 import { connectedHosts } from "../sites.js";
 import { detectBlocker, robotsBlocked } from "./browser.js";
 import { looksSubmitted } from "./filler.js";
@@ -265,7 +265,7 @@ export async function runAgent(opts: {
             content: [
               `Job: ${job.title} at ${job.company}`,
               `Candidate facts (trusted):\n${factsSheet(p)}`,
-              `CV (trusted):\n<cv>\n${p.cvText.slice(0, 12000)}\n</cv>`,
+              `The candidate's own documents (trusted):\n${knowledge(p, 14000)}`,
               p.savedAnswers.length ? `Candidate's own answers (trusted):\n${p.savedAnswers.map((s) => `- ${s.question}: ${s.answer}`).join("\n")}` : "",
               opts.hint ?? "",
               ownWords ? "IMPORTANT: this employer does not accept AI-written answers. Fill only factual fields (name, contact, location, links, CV upload, yes/no facts). For any open question, still choose type with an empty text: JobPilot will hand it to the candidate. Then continue." : "",

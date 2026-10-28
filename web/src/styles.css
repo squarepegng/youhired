@@ -404,3 +404,4 @@ textarea { resize: vertical; line-height: 1.5; }
 .content { position: relative; }
 .bulkbar { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); width: max-content; display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; background: #17181a; border-radius: 10px; box-shadow: var(--shadow); color: var(--text-2); z-index: 5; animation: fade 0.14s ease-out; }
 .bulkbar b { color: var(--text); }
+.draftchip { margin-left: 8px; font-size: 10.5px; padding: 1px 6px; border-radius: 4px; background: var(--accent-soft); color: var(--violet); vertical-align: 1px; }
