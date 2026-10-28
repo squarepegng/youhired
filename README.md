@@ -47,6 +47,24 @@ Applications run one at a time from a queue, so you can line up several and leav
 
 The app only listens on `localhost`, so nobody else on your network can reach it.
 
+## Apply in your own Chrome (recommended)
+
+JobPilot's own browser is automation-controlled, so sites can tell. reCAPTCHA scores it as a likely bot and can keep showing new puzzles. The **JobPilot Chrome extension** fixes that properly: applications run in a tab of your everyday Chrome, with your profile and sign-ins. Invisible checks usually just pass, and if a puzzle does show, you solve it once in your own tab.
+
+Set up (once):
+
+1. In Chrome, open `chrome://extensions` and turn on **Developer mode** (top right).
+2. Click **Load unpacked** and choose the `extension` folder inside JobPilot.
+3. In JobPilot, go to **Settings → Your Chrome** and copy the pairing code.
+4. Click the JobPilot icon in Chrome's toolbar (pin it from the puzzle-piece menu), paste the code, and press **Connect**.
+5. Turn on **Apply in my Chrome** in **Settings → Your Chrome**.
+
+How it works:
+- **Who does what.** The app still finds jobs, writes answers and tailors your CV. The extension only carries out the agent's steps (read the page, click, type, choose, upload) in tabs JobPilot opens.
+- **Privacy.** It only talks to JobPilot on this Mac, using the pairing code. It never reads your other tabs.
+- **Same rules.** Facts from your profile, no invented answers, no passwords or accounts, and job boards' robots.txt rules.
+- **No extension connected?** JobPilot falls back to its own browser.
+
 ## How a search works
 
 1. JobPilot pulls postings from public job sources that allow it:

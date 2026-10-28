@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "JobPilot",
+  "version": "0.1.0",
+  "description": "Lets your local JobPilot app fill in job applications in your own Chrome. Talks only to JobPilot on this computer.",
+  "permissions": ["tabs", "scripting", "storage", "webNavigation", "alarms"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "JobPilot" },
+  "icons": { "128": "icon.png" }
+}

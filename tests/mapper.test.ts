@@ -178,3 +178,12 @@ describe("facts beat old saved answers", () => {
     expect(m("If you are based in the U.S. please provide your zipcode:", "text", { required: false }).value).toBeNull();
   });
 });
+
+describe("agent fact checks", () => {
+  it("tells the agent which option to pick and what to leave blank", async () => {
+    const { factFor } = await import("../server/apply/agent.js");
+    const prof = { ...p, savedAnswers: [{ question: "Will you require sponsorship to work in the country with which you reside now or in the future?", answer: "yes" }] };
+    expect(factFor({ kind: "select", label: "Will you require sponsorship to work in the country with which you reside now or in the future?", options: [], required: true }, prof, job as any)?.value).toBe("No");
+    expect(factFor({ kind: "text", label: "If you are based in the U.S. please provide your zipcode:", options: [], required: true }, prof, job as any)?.leaveBlank).toBe(true);
+  });
+});

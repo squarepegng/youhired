@@ -11,43 +11,17 @@
 // - Free text is checked for invented numbers and planted code words.
 // - Page text is untrusted data.
 
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { Page } from "playwright";
-import { UNTRUSTED_RULE, containsPlantedWord, detectAiScreening, detectInjection, inventedNumbers, untrusted } from "../guardrails.js";
+import { checkRobots } from "../sources/http.js";
+import { JOB_BOARD_HOSTS, UNTRUSTED_RULE, containsPlantedWord, detectAiScreening, detectInjection, inventedNumbers, untrusted } from "../guardrails.js";
 import type { LLM } from "../providers/types.js";
 import type { Job, Profile } from "../types.js";
 import { groundTruth, knowledge } from "./answers.js";
 import { connectedHosts } from "../sites.js";
-import { detectBlocker, robotsBlocked } from "./browser.js";
-import { looksSubmitted } from "./filler.js";
+import { type Driver, type El, PlaywrightDriver, type Snapshot } from "./driver.js";
 import { type FieldKind, type FormField, mapField } from "./mapper.js";
 
-const READER = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "agent-reader.js"), "utf8");
 
-interface El {
-  id: number;
-  kind: string;
-  label: string;
-  href?: string;
-  value?: string;
-  options?: string[];
-  checked?: boolean;
-  required?: boolean;
-  password?: boolean;
-  file?: string;
-  disabled?: boolean;
-  inView?: boolean;
-  frame?: number;
-}
-interface Snapshot {
-  url: string;
-  title: string;
-  elements: El[];
-  text: string;
-  scrollable: boolean;
-}
 
 type ActionName =
   | "click" | "type" | "select" | "check" | "upload_cv" | "upload_cover" | "press_enter" | "scroll_down" | "scroll_up" | "go_back" | "wait"
@@ -87,7 +61,8 @@ export interface AgentResult {
   reason: string;
   questions: { label: string; options: string[] }[];
   answers: { label: string; value: string; source: string }[];
-  page: Page;
+  page: Page; // the Playwright page (when JobPilot's own browser was used)
+  driver: Driver;
   ownWords: boolean; // switched to "your own words" because the employer bans AI-written answers
 }
 
@@ -133,27 +108,6 @@ Truthfulness, always:
 
 Don't repeat an action that didn't change anything; try another way or report blocked.`;
 
-/** Read the main page and every embedded frame (many career sites put the form in an iframe). */
-async function snapshot(page: Page): Promise<Snapshot> {
-  const frames = page.frames();
-  let main: Snapshot | null = null;
-  const elements: El[] = [];
-  const texts: string[] = [];
-  for (let i = 0; i < frames.length; i++) {
-    const f = frames[i];
-    if (i > 0 && /recaptcha|hcaptcha|challenges\.cloudflare|google\.com\/maps|youtube|doubleclick|googletagmanager|facebook|stripe/.test(f.url())) continue;
-    try {
-      const snap = (await f.evaluate(READER.replace("let n = 0;", `let n = ${elements.length};`))) as Snapshot;
-      for (const e of snap.elements) elements.push({ ...e, frame: i });
-      if (i === 0) main = snap;
-      else if (snap.elements.length) texts.push(snap.text);
-    } catch {
-      /* frame not ready or cross-origin and closed */
-    }
-  }
-  if (!main) throw new Error("Page not readable");
-  return { ...main, elements, text: [main.text, ...texts].join("\n").slice(0, 5000) };
-}
 
 function describe(s: Snapshot): string {
   const lines = s.elements.map((e) => {
@@ -176,17 +130,19 @@ function describe(s: Snapshot): string {
 const KIND: Record<string, FieldKind> = { text: "text", email: "email", tel: "tel", url: "url", number: "number", textarea: "textarea", select: "select", combobox: "combobox", checkbox: "checkbox-single", radio: "radio", date: "date" };
 
 /** The rule-based answer for a field, if the profile decides it (facts never come from the model). */
-export function factFor(el: Pick<El, "kind" | "label" | "options" | "required">, p: Profile, job: Job): { value: string | null; mustAsk: boolean; source: string } | null {
+export function factFor(el: Pick<El, "kind" | "label" | "options" | "required">, p: Profile, job: Job): { value: string | null; mustAsk: boolean; source: string; leaveBlank?: boolean } | null {
   const f: FormField = { id: "x", frame: 0, kind: KIND[el.kind] ?? "text", label: el.label, name: "", required: !!el.required, options: el.options ?? [], value: "" };
   const m = mapField(f, p, job);
   if (m.source === "ai") return null; // free text / judgement: the model may write it
   if (m.need === "user") return { value: null, mustAsk: true, source: m.note ?? "needs you" };
+  if (m.value == null && m.source === "rule" && /left blank|leave|only for us/i.test(m.note ?? "")) return { value: null, mustAsk: false, source: m.note ?? "rule", leaveBlank: true };
   if (m.value == null || Array.isArray(m.value) || m.source === "cv-file" || m.source === "cover-file") return null;
   return { value: String(m.value), mustAsk: false, source: m.source };
 }
 
 export async function runAgent(opts: {
-  page: Page;
+  page?: Page;
+  driver?: Driver;
   llm: LLM;
   job: Job;
   profile: Profile;
@@ -198,46 +154,42 @@ export async function runAgent(opts: {
   ownWords?: boolean; // employer bans AI-written answers: fill facts only, collect open questions for the candidate
 }): Promise<AgentResult> {
   const { llm, job, profile: p, files, log } = opts;
-  let page = opts.page;
+  const d: Driver = opts.driver ?? new PlaywrightDriver(opts.page!, (u) => log(`Followed a link to a new tab: ${u}`));
   const answers: AgentResult["answers"] = [];
   const truth = `${groundTruth(p)}\n${job.description}\n${job.title}\n${job.company}`;
   const history: string[] = [];
   let lastSig = "";
   let lastField = "";
   let failures = 0;
-  page.setDefaultTimeout(10_000);
   const ownWordsQs: { label: string; options: string[] }[] = [];
   let ownWords = !!opts.ownWords;
   let sameCount = 0;
-  const done = (outcome: AgentResult["outcome"], reason: string, questions: AgentResult["questions"] = []): AgentResult => ({ outcome, reason, questions, answers, page, ownWords });
-
-  // New tabs (target=_blank "Apply" links) become the page we work on.
-  const ctx = page.context();
-  const onPage = (np: Page) => {
-    page = np;
-    log(`Followed a link to a new tab: ${np.url()}`);
-  };
-  ctx.on("page", onPage);
-  robotsBlocked.clear();
+  const done = (outcome: AgentResult["outcome"], reason: string, questions: AgentResult["questions"] = []): AgentResult => ({
+    outcome,
+    reason,
+    questions,
+    answers,
+    page: (d instanceof PlaywrightDriver ? d.page : undefined) as Page,
+    driver: d,
+    ownWords,
+  });
 
   try {
     for (let step = 1; step <= (opts.maxSteps ?? 40); step++) {
-      await page.waitForLoadState("domcontentloaded").catch(() => {});
-      await page.waitForTimeout(700);
+      await d.settle();
 
-      const blocked = [...robotsBlocked][0];
+      const blocked = d.takeRobotsBlock();
       if (blocked) {
-        robotsBlocked.clear();
         return done("blocked", `The site's robots.txt asks automated tools not to open ${blocked.replace(/\?.*/, "")}, so JobPilot stopped there.`);
       }
-      const b = await detectBlocker(page);
+      const b = await d.blocker();
       if (b.kind === "captcha") return done("captcha", b.detail);
       if (b.kind !== "none") return done("blocked", b.detail);
-      if (await looksSubmitted(page)) return done("submitted", "Confirmation shown");
+      if (await d.submitted()) return done("submitted", "Confirmation shown");
 
-      const snap = await snapshot(page).catch(() => null);
+      const snap = await d.snapshot().catch(() => null);
       if (!snap) {
-        await page.waitForTimeout(1000);
+        await d.wait(1000);
         continue;
       }
       const screening = detectAiScreening(snap.text);
@@ -252,7 +204,8 @@ export async function runAgent(opts: {
       lastSig = sig;
       if (sameCount >= 4) return done("gave_up", "The page stopped responding to actions.");
 
-      const images = llm.supportsVision ? [{ mediaType: "image/jpeg" as const, base64: (await page.screenshot({ type: "jpeg", quality: 55 }).catch(() => Buffer.alloc(0))).toString("base64") }].filter((i) => i.base64) : [];
+      const shot = llm.supportsVision ? await d.screenshot() : null;
+      const images = shot ? [{ mediaType: "image/jpeg" as const, base64: shot.toString("base64") }] : [];
       const decision = await llm.json<Step>({
         schemaName: "browser_step",
         schema: SCHEMA,
@@ -281,7 +234,7 @@ export async function runAgent(opts: {
       });
 
       const el = snap.elements.find((e) => e.id === decision.element);
-      const target = el ? (page.frames()[el.frame ?? 0] ?? page.mainFrame()).locator(`[data-jp-a="${el.id}"]`).first() : null;
+      const target = el ?? null;
       const say = `${decision.action}${el ? ` [${el.id}] "${el.label.slice(0, 60)}"` : ""}${decision.text ? ` = "${decision.text.slice(0, 60)}"` : ""}`;
       log(`${decision.thought}  →  ${say}`);
       let note = "";
@@ -292,7 +245,7 @@ export async function runAgent(opts: {
           if (ownWordsQs.length) return done("need_user", "This employer wants answers in your own words", ownWordsQs);
           return done("ready_to_submit", decision.reason || "All fields filled");
         case "submitted":
-          if (await looksSubmitted(page)) return done("submitted", decision.reason || "Confirmation shown");
+          if (await d.submitted()) return done("submitted", decision.reason || "Confirmation shown");
           note = "No confirmation is visible yet. Check for errors or a final submit button.";
           break;
         case "blocked":
@@ -304,19 +257,19 @@ export async function runAgent(opts: {
           return done("need_user", ownWordsQs.length ? "Answers in your own words, plus anything only you know" : decision.reason || "Questions only you can answer", qs);
         }
         case "scroll_down":
-          await page.mouse.wheel(0, 700);
+          await d.scroll(700);
           break;
         case "scroll_up":
-          await page.mouse.wheel(0, -700);
+          await d.scroll(-700);
           break;
         case "go_back":
-          await page.goBack().catch(() => {});
+          await d.back();
           break;
         case "wait":
-          await page.waitForTimeout(1500);
+          await d.wait(1500);
           break;
         case "press_enter":
-          await page.keyboard.press("Enter");
+          await d.pressEnter();
           break;
         case "upload_cv":
         case "upload_cover": {
@@ -329,11 +282,7 @@ export async function runAgent(opts: {
             note = "Pick the file input or attach button by id.";
             break;
           }
-          if (el!.kind === "file") await target.setInputFiles(file);
-          else {
-            const [chooser] = await Promise.all([page.waitForEvent("filechooser", { timeout: 5000 }), target.click()]);
-            await chooser.setFiles(file);
-          }
+          await d.upload(el!, file);
           answers.push({ label: el!.label || "Resume", value: decision.action === "upload_cv" ? "(your CV)" : "(cover letter)", source: decision.action === "upload_cv" ? "cv-file" : "cover-file" });
           break;
         }
@@ -344,17 +293,36 @@ export async function runAgent(opts: {
             break;
           }
           if (/sign ?in|log ?in|create (an )?account|register|continue with (google|linkedin|apple)/i.test(el!.label) && !/apply/i.test(el!.label)) {
-            const host = new URL(page.url()).hostname.replace(/^www\./, "");
+            const host = new URL(d.url()).hostname.replace(/^www\./, "");
             return done("blocked", `${host} wants you signed in. JobPilot never signs in or creates accounts for you: connect ${host} under Settings → Connected sites (you sign in once yourself), then try again.`);
           }
-          if (decision.action === "check") await target.check({ force: true }).catch(() => target.click({ force: true }));
-          else await target.click({ timeout: 6000 }).catch(async () => target.click({ force: true, timeout: 3000 }));
+          // Picking from a dropdown that's about a fact (authorisation, sponsorship, location…): your profile decides.
+          if (el!.kind === "option" && lastField) {
+            const fact = factFor({ kind: "select", label: lastField, options: [], required: true }, p, job);
+            if (fact?.mustAsk) return done("need_user", "A required question only you can answer", [...ownWordsQs, { label: lastField, options: [] }]);
+            if (fact?.value && !optionMatches(el!.label, fact.value)) {
+              note = `Your profile answers "${lastField.slice(0, 60)}" with "${fact.value}". Pick the option that says that, not "${el!.label.slice(0, 40)}".`;
+              log(`Kept to your profile for "${lastField.slice(0, 50)}": ${fact.value}`);
+              break;
+            }
+          }
+          // Job boards' robots.txt rules apply in your Chrome too (e.g. Himalayas' /apply).
+          if (el!.href && d.kind === "extension") {
+            try {
+              const u = new URL(el!.href, d.url());
+              if (JOB_BOARD_HOSTS.test(u.hostname)) await checkRobots(u);
+            } catch (e) {
+              if ((e as Error).message.includes("robots.txt")) return done("blocked", `${(e as Error).message} JobPilot stopped there.`);
+            }
+          }
+          if (decision.action === "check") await d.check(el!);
+          else await d.click(el!);
+          if (el!.kind !== "option" && !/^(yes|no)$/i.test(el!.label.trim()) && el!.label.length > 3 && el!.label.length < 400) lastField = el!.label;
           // Record choices and agreements so they show up in your review.
           const choice = /^(yes|no|i agree|agree|accept|i accept|i understand|confirm)\b/i.test(el!.label.trim());
           if (el!.kind === "option" && lastField) answers.push({ label: lastField, value: el!.label, source: "ai · picked from the dropdown" });
           else if (choice || el!.kind === "radio" || el!.kind === "checkbox")
             answers.push({ label: decision.thought.slice(0, 120), value: `Clicked "${el!.label.slice(0, 60)}"`, source: choice ? "ai · agreement: please review" : "ai" });
-          await page.waitForLoadState("domcontentloaded", { timeout: 8000 }).catch(() => {});
           break;
         }
         case "type":
@@ -368,6 +336,10 @@ export async function runAgent(opts: {
           let source = "ai";
           const fact = factFor(el, p, job);
           if (fact?.mustAsk) return done("need_user", "A required question only you can answer", [...ownWordsQs, { label: el.label, options: el.options ?? [] }]);
+          if (fact?.leaveBlank) {
+            note = `Leave "${el.label.slice(0, 60)}" empty (${fact.source}). Move on.`;
+            break;
+          }
           if (fact?.value != null) {
             if (fact.value !== value) log(`Used your profile instead of the model's text for "${el.label.slice(0, 50)}"`);
             value = fact.value;
@@ -390,16 +362,10 @@ export async function runAgent(opts: {
               note = `"${value}" isn't one of the options.`;
               break;
             }
-            await target.selectOption({ label: opt });
+            await d.select(el, opt);
             value = opt;
           } else {
-            await target.click({ timeout: 5000 }).catch(() => {});
-            await target.press(process.platform === "darwin" ? "Meta+A" : "Control+A").catch(() => {});
-            await target.press("Backspace").catch(() => {});
-            if (value.length > 300) {
-              await page.keyboard.insertText(value.slice(0, -15));
-              await target.pressSequentially(value.slice(-15), { delay: 10 });
-            } else await target.pressSequentially(value, { delay: 15 });
+            await d.type(el, value);
           }
           answers.push({ label: el.label || `Field ${el.id}`, value, source });
           lastField = el.label;
@@ -419,6 +385,12 @@ export async function runAgent(opts: {
   } catch (e) {
     return done("gave_up", (e as Error).message.split("\n")[0]);
   } finally {
-    ctx.off("page", onPage);
+    if (d instanceof PlaywrightDriver && !opts.driver) d.dispose();
   }
+}
+
+function optionMatches(option: string, want: string): boolean {
+  const o = option.trim().toLowerCase();
+  const w = want.trim().toLowerCase();
+  return o === w || o.startsWith(w) || w.startsWith(o) || o.includes(w);
 }

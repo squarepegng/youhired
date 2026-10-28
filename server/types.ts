@@ -12,6 +12,8 @@ export interface Settings {
   background: boolean; // run the browser hidden (headless); review via screenshots in the app
   connectedSites: { id: string; name: string; host: string; connectedAt: string }[]; // sites you signed in to yourself
   tailorCv: boolean; // send a CV tailored to each job (fact-checked); off = always your original file
+  useMyChrome: boolean; // apply in your everyday Chrome through the JobPilot extension
+  extensionCode: string; // pairing code the extension sends with every request
 }
 
 export type WorkAuthStatus = "citizen" | "authorized" | "needs_sponsorship" | "not_authorized";

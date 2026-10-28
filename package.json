@@ -11,7 +11,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "demo": "tsx scripts/demo-greenhouse.ts",
-    "postinstall": "playwright install chromium || echo \"(Using your installed Google Chrome instead of Playwright Chromium)\""
+    "postinstall": "playwright install chromium || echo \"(Using your installed Google Chrome instead of Playwright Chromium)\"",
+    "build:extension": "node scripts/build-extension.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

@@ -65,13 +65,21 @@ export const PROVIDERS: ProviderInfo[] = [
   },
 ];
 
-/** Models occasionally return malformed JSON or hit a passing error. Retry those a couple of times. */
-export function withRetries(llm: LLM, attempts = 3): LLM {
+/** Models occasionally return malformed JSON, hang, or hit a passing error. Time-limit and retry those. */
+export function withRetries(llm: LLM, attempts = 3, timeoutMs = 120_000): LLM {
+  const timed = <T>(p: Promise<T>): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      const t = setTimeout(() => reject(new ProviderError(`No reply from ${llm.provider} within ${timeoutMs / 1000}s`, "network")), timeoutMs);
+      p.then(
+        (v) => (clearTimeout(t), resolve(v)),
+        (e) => (clearTimeout(t), reject(e)),
+      );
+    });
   const retry = async <T>(fn: () => Promise<T>): Promise<T> => {
     let last: unknown;
     for (let i = 0; i < attempts; i++) {
       try {
-        return await fn();
+        return await timed(fn());
       } catch (e) {
         last = e;
         const kind = (e as ProviderError).kind;

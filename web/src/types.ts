@@ -13,6 +13,7 @@ export interface Settings {
   browserChannel: "chrome" | "msedge" | "chromium";
   background: boolean;
   tailorCv?: boolean;
+  useMyChrome?: boolean;
 }
 
 export interface Profile {

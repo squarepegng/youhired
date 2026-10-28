@@ -3,7 +3,7 @@ import path from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import { applyBlocker, configureQueue, currentApply, enqueue, queued } from "./apply/queue.js";
-import { closeSession, finishHandoff, hasSession, isSubmitting, logs, shotPath, submit } from "./apply/runner.js";
+import { closeSession, finishHandoff, hasSession, inMyChrome, isSubmitting, logs, shotPath, submit } from "./apply/runner.js";
 import { activity, chat, configureAssistant, resolveAction } from "./assistant.js";
 import { cvToText, extractProfile, mergeExtract } from "./cv.js";
 import { detectAts, hostNeedsLogin } from "./guardrails.js";
@@ -16,6 +16,7 @@ import { buildStories } from "./stories.js";
 import { tailoredPath } from "./tailor.js";
 import { SITES, disconnect, markConnected, openSignIn } from "./sites.js";
 import { toCsv } from "./tracker.js";
+import { authorised, deliver, extensionStatus, pairingCode, poll } from "./extension.js";
 import type { Job, Profile, SearchPrefs, Settings } from "./types.js";
 
 const PORT = Number(process.env.PORT || 5173);
@@ -32,7 +33,7 @@ const llmOrNull = () => {
 };
 configureQueue(llmOrNull);
 configureAssistant(llmOrNull);
-const publicSettings = (s: Settings) => ({ ...s, apiKey: maskKey(s.apiKey), hasKey: !!s.apiKey });
+const publicSettings = (s: Settings) => ({ ...s, apiKey: maskKey(s.apiKey), hasKey: !!s.apiKey, extensionCode: undefined });
 const wrap = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => fn(req, res).catch(next);
 
 app.get("/api/state", (_req, res) => {
@@ -170,7 +171,7 @@ app.get("/api/jobs", (_req, res) => {
   const q = queued();
   const cur = currentApply();
   const prof = load().profile;
-  const jobs = Object.values(load().jobs).map((j) => ({ ...j, description: j.description.slice(0, 4000), hasSession: hasSession(j.id), working: cur === j.id || q.includes(j.id) || isSubmitting(j.id), tailoredCv: fs.existsSync(tailoredPath(j, prof)) }));
+  const jobs = Object.values(load().jobs).map((j) => ({ ...j, description: j.description.slice(0, 4000), hasSession: hasSession(j.id) || inMyChrome(j.id), working: cur === j.id || q.includes(j.id) || isSubmitting(j.id), tailoredCv: fs.existsSync(tailoredPath(j, prof)) }));
   res.json(jobs);
 });
 
@@ -305,6 +306,21 @@ app.post("/api/sites/disconnect", (req, res) => {
   res.json({ connected: load().settings.connectedSites });
 });
 
+// ── JobPilot Chrome extension (applies in your everyday Chrome) ──
+app.get("/api/extension", (_req, res) => res.json({ ...extensionStatus(), code: pairingCode(), server: `http://localhost:${PORT}`, folder: path.resolve("extension") }));
+app.get("/api/ext/poll", wrap(async (req, res) => {
+  if (!authorised(req.get("x-jobpilot-code"))) return void res.status(401).json({ error: "Not paired" });
+  const cmd = await poll(String(req.get("x-jobpilot-version") ?? ""));
+  if (!cmd) return void res.status(204).end();
+  res.json(cmd);
+}));
+app.post("/api/ext/result", (req, res) => {
+  if (!authorised(req.get("x-jobpilot-code"))) return void res.status(401).json({ error: "Not paired" });
+  const b = req.body as { id: string; ok: boolean; value?: unknown; error?: string };
+  deliver(b.id, b.ok, b.value, b.error);
+  res.json({ ok: true });
+});
+
 // ── Assistant ──
 app.get("/api/chat", (_req, res) => res.json({ messages: load().chat, applying: currentApply(), queued: queued() }));
 app.get("/api/chat/activity", (_req, res) => res.json(activity));
@@ -340,6 +356,9 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 async function start() {
+  // Keep the Chrome extension's page reader in sync with JobPilot's own.
+  const { buildExtension } = (await import(path.resolve("scripts/build-extension.mjs"))) as { buildExtension: () => string };
+  buildExtension();
   if (process.env.NODE_ENV === "production" && fs.existsSync("dist/index.html")) {
     app.use(express.static("dist"));
     app.get(/^(?!\/api).*/, (_req, res) => res.sendFile(path.resolve("dist/index.html")));

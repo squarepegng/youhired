@@ -10,6 +10,7 @@ import { alreadyApplied, appliedReason } from "../dedupe.js";
 import { checkLiveness } from "../liveness.js";
 import { tailorCv } from "../tailor.js";
 import { makeLLM } from "../providers/index.js";
+import { ExtensionDriver, extensionConnected } from "../extension.js";
 import { checkLocation } from "../eligibility.js";
 import { connectedHosts } from "../sites.js";
 import { findEmployerForm } from "../sources/index.js";
@@ -133,6 +134,12 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
     } catch (e) {
       log(id, `Couldn't tailor the CV (${(e as Error).message.slice(0, 80)}); using your original.`);
     }
+  }
+
+  // Apply in your everyday Chrome (JobPilot extension) when you've chosen that.
+  if (store.settings.useMyChrome && llm && !opts.profileOverride) {
+    if (extensionConnected()) return applyInMyChrome(job, llm, p, cv, opts, ownWords, boardOnly);
+    log(id, "The JobPilot Chrome extension isn't connected, so this one runs in JobPilot's own browser.");
   }
 
   const ctx = await getContext(opts.channel, opts.headless);
@@ -361,6 +368,87 @@ async function finishWithAgent(job: Job, page: Page, llm: LLM, p: ReturnType<typ
   }
 }
 
+// ── Applying in your everyday Chrome (extension) ─────────────────────────────
+
+const chromeTabs = new Map<string, ExtensionDriver>();
+export const inMyChrome = (id: string) => chromeTabs.has(id);
+
+async function applyInMyChrome(job: Job, llm: LLM, p: ReturnType<typeof load>["profile"], cv: string, opts: ApplyOptions, ownWords: boolean, boardOnly: boolean): Promise<Job> {
+  const id = job.id;
+  let cover: string | undefined;
+  if (!ownWords) {
+    const note = job.coverNote || (await writeCoverNote(llm, p, job).catch(() => ""));
+    if (note) {
+      job.coverNote = note;
+      cover = path.join(DATA_DIR, "cover", `${id.replace(/[^\w-]/g, "_")}.txt`);
+      fs.mkdirSync(path.dirname(cover), { recursive: true });
+      fs.writeFileSync(cover, note);
+    }
+  }
+  log(id, "Opening the application in a tab of your Chrome…");
+  const d = await ExtensionDriver.open(boardOnly ? job.url || job.applyUrl : job.applyUrl);
+  chromeTabs.set(id, d);
+  return driveInChrome(job, d, llm, p, { cv, cover }, opts.autoSubmit && !opts.dryRun, ownWords);
+}
+
+async function driveInChrome(job: Job, d: ExtensionDriver, llm: LLM, p: ReturnType<typeof load>["profile"], files: { cv: string; cover?: string }, auto: boolean, ownWords: boolean, hint?: string): Promise<Job> {
+  const id = job.id;
+  const r = await runAgent({ driver: d, llm, job, profile: p, files, autoSubmit: auto, ownWords, hint, log: (m) => log(id, m) });
+  const byLabel = new Map([...(job.answers ?? []), ...r.answers].map((x) => [x.label, x]));
+  job.answers = [...byLabel.values()];
+  switch (r.outcome) {
+    case "submitted":
+      log(id, "Confirmation shown. Applied.");
+      chromeTabs.delete(id);
+      return save(job, "applied", "Confirmation page shown (in your Chrome)");
+    case "ready_to_submit":
+      if (auto && !job.flags.includes("hidden-instructions")) return driveInChrome(job, d, llm, p, files, true, ownWords, "Everything is filled. Click the final submit button now, then answer submitted once the confirmation shows.");
+      log(id, "Filled in your Chrome tab. Waiting for your review.");
+      return save(job, "filled", "Filled in a tab of your Chrome. Check it, then press Submit (there or here).");
+    case "captcha": {
+      // Your real browser: the check usually passes on its own; if a puzzle shows, you solve it once.
+      job.handoff = "captcha";
+      await d.focus();
+      log(id, "A human check appeared in your Chrome tab. Tick it there; JobPilot carries on by itself.");
+      void (async () => {
+        const end = Date.now() + 10 * 60_000;
+        while (Date.now() < end) {
+          await sleep(3000);
+          const b = await d.blocker().catch(() => ({ kind: "none" as const, detail: "" }));
+          if (b.kind !== "captcha") {
+            log(id, "Human check passed. Continuing.");
+            await driveInChrome(job, d, llm, p, files, auto || job.status === "filled", ownWords).catch((e) => log(id, `Stopped: ${(e as Error).message}`));
+            return;
+          }
+        }
+        log(id, "Still waiting for the human check in your Chrome tab. Press Finish when you're ready.");
+      })();
+      return save(job, "filled", "One quick check in your Chrome tab: tick it there and JobPilot finishes by itself.");
+    }
+    case "need_user":
+      if (r.ownWords) {
+        job.handoff = "own_words";
+        job.flags = [...new Set([...job.flags, "ai-screening"])];
+      }
+      job.pending = r.questions.map((q, i) => ({ fieldId: `agent-${i}`, label: q.label, required: true, options: q.options.length ? q.options : undefined }));
+      await draftPending(llm, p, job, job.pending);
+      return save(job, "needs_answer", r.reason);
+    case "blocked":
+      return save(job, "do_it_yourself", `${r.reason} The tab is open in your Chrome.`);
+    default:
+      return save(job, "error", `JobPilot couldn't finish this form: ${r.reason} The tab is open in your Chrome.`);
+  }
+}
+
+/** Submit (or finish a human check) for a job that's open in your Chrome. */
+async function submitInMyChrome(job: Job): Promise<Job> {
+  const d = chromeTabs.get(job.id)!;
+  const llm = llmNow();
+  if (!llm) throw new Error("Connect your AI in Settings first.");
+  await d.focus();
+  return driveInChrome(job, d, llm, load().profile, { cv: cvPath() }, true, job.flags.includes("ai-screening"), "The candidate approved this application. Fix anything still missing, click the final submit button, and answer submitted once the confirmation shows.");
+}
+
 // ── Human checks (CAPTCHA) ──────────────────────────────────────────────────
 // JobPilot never solves CAPTCHAs. When one appears it keeps the filled form, tells you, and waits:
 // you tick the box in the JobPilot window, it carries on and submits.
@@ -428,6 +516,11 @@ async function humanCheck(job: Job, page: Page, opts: Pick<ApplyOptions, "headle
 export function finishHandoff(id: string): "watching" | "reopen" {
   const s = sessions.get(id);
   const job = load().jobs[id];
+  const tab = chromeTabs.get(id);
+  if (tab && job) {
+    void submitInMyChrome(job).catch((e) => log(id, `Stopped: ${(e as Error).message}`));
+    return "watching";
+  }
   if (s && !s.page.isClosed() && !isHeadless() && job) {
     void s.page.bringToFront().catch(() => {});
     void humanCheck(job, s.page, { headless: false });
@@ -497,6 +590,7 @@ export async function submit(id: string): Promise<Job> {
 }
 
 async function submitOnce(id: string, job: Job): Promise<Job> {
+  if (chromeTabs.has(id)) return submitInMyChrome(job);
   const s = sessions.get(id);
   if (!s || s.page.isClosed()) {
     // The form was closed (or the app restarted): fill it again and submit.

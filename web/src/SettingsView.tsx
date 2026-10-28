@@ -157,6 +157,8 @@ export function SettingsView({ ctx }: { ctx: Ctx }) {
           </div>
           {extra.length > 0 && <p className="group-desc" style={{ marginTop: 6 }}>{extra.length} more models available. Type in "Other model" to pick one.</p>}
 
+          <YourChrome autoOn={!!s.useMyChrome} onToggle={(v) => save({ useMyChrome: v })} />
+
           <div className="group-title">Applying</div>
           <div className="box">
             <div className="srow">
@@ -316,6 +318,71 @@ function ConnectedSites() {
               <Link2 size={13} /> Sign in
             </button>
           )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function YourChrome({ autoOn, onToggle }: { autoOn: boolean; onToggle: (v: boolean) => void }) {
+  const toast = useToast();
+  const [st, setSt] = useState<{ connected: boolean; code: string; server: string; version: string; folder: string } | null>(null);
+  useEffect(() => {
+    const load = () => api<typeof st>("/api/extension").then(setSt).catch(() => {});
+    void load();
+    const t = setInterval(load, 3000);
+    return () => clearInterval(t);
+  }, []);
+  const copy = (t: string) => navigator.clipboard.writeText(t).then(() => toast("Copied"));
+  return (
+    <>
+      <div className="group-title">Your Chrome</div>
+      <p className="group-desc">
+        Apply in your everyday Chrome instead of JobPilot's own browser. Sites see your normal browser, so invisible human checks usually just pass, and if a puzzle does show, you solve it once in your own tab. Needs the small JobPilot extension (one-time setup).
+      </p>
+      <div className="box">
+        <div className="srow">
+          <div className="l">
+            <b>Apply in my Chrome</b>
+            <span>
+              {st?.connected ? (
+                <>
+                  <span className="dotlive" style={{ display: "inline-block", marginRight: 6 }} />
+                  Extension connected{st.version ? ` (v${st.version})` : ""}
+                </>
+              ) : (
+                "Extension not connected yet. Follow the steps below."
+              )}
+            </span>
+          </div>
+          <Switch label="Apply in my Chrome" checked={autoOn} onChange={onToggle} />
+        </div>
+        <div className="srow stack">
+          <div className="l">
+            <b>Set up (once)</b>
+          </div>
+          <ol style={{ margin: 0, paddingLeft: 18, color: "var(--text-2)", lineHeight: 1.8 }}>
+            <li>
+              In Chrome, open <code>chrome://extensions</code> and turn on <b>Developer mode</b> (top right).
+            </li>
+            <li>
+              Click <b>Load unpacked</b> and choose the <code>extension</code> folder inside JobPilot:{" "}
+              <button className="link" onClick={() => st && copy(st.folder)}>
+                copy the folder path
+              </button>
+              .
+            </li>
+            <li>Click the JobPilot icon in Chrome's toolbar (pin it from the puzzle-piece menu), paste this code, and press Connect.</li>
+          </ol>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input readOnly value={st?.code ?? "…"} style={{ fontFamily: "ui-monospace, Menlo, monospace" }} />
+            <button className="btn" onClick={() => st && copy(st.code)}>
+              Copy code
+            </button>
+          </div>
+          <span className="faint" style={{ fontSize: 12 }}>
+            The extension only talks to JobPilot on this Mac ({st?.server ?? "localhost"}), only acts in tabs JobPilot opens, and never reads your other tabs.
+          </span>
         </div>
       </div>
     </>
