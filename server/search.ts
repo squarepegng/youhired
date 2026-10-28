@@ -199,9 +199,11 @@ export function applyScore(job: Job, s: Score): void {
   job.whyFit = s.why_fit;
   const real = s.evidence ? evidenceIsReal(s.evidence, job) : false;
   const rule = job.eligibility;
-  if (s.eligibility === "ineligible" && real) {
+  if (rule?.verdict === "ineligible") {
+    // Rule-based "ineligible" stands, whatever the AI says.
+  } else if (s.eligibility === "ineligible" && real) {
     job.eligibility = { verdict: "ineligible", reason: s.reason, evidence: s.evidence };
-  } else if (s.eligibility === "eligible" && real && rule?.verdict !== "ineligible") {
+  } else if (s.eligibility === "eligible" && real) {
     job.eligibility = { verdict: "eligible", reason: s.reason, evidence: s.evidence };
   } else if (rule?.verdict !== "eligible") {
     job.eligibility = { verdict: "unclear", reason: real || !s.evidence ? s.reason : `${s.reason} (AI quote not found in posting, so not trusted)`, evidence: rule?.evidence ?? job.location };

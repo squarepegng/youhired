@@ -30,6 +30,35 @@ const REGIONS: Record<string, string[]> = {
     "singapore", "japan", "south korea", "china", "hong kong", "taiwan", "australia", "new zealand", "nepal",
   ],
 };
+// Every country name, so "Armenia" or "Brazil" alone is recognised as a restriction.
+const ALL_COUNTRIES = [
+  "afghanistan", "albania", "algeria", "andorra", "angola", "antigua and barbuda", "argentina", "armenia",
+  "australia", "austria", "azerbaijan", "bahamas", "bahrain", "bangladesh", "barbados", "belarus",
+  "belgium", "belize", "benin", "bhutan", "bolivia", "bosnia and herzegovina", "botswana", "brazil",
+  "brunei", "bulgaria", "burkina faso", "burundi", "cabo verde", "cambodia", "cameroon", "canada",
+  "cape verde", "central african republic", "chad", "chile", "china", "colombia", "comoros", "congo",
+  "costa rica", "croatia", "cuba", "cyprus", "czech republic", "czechia", "denmark", "djibouti",
+  "dominica", "dominican republic", "ecuador", "egypt", "el salvador", "equatorial guinea", "eritrea", "estonia",
+  "eswatini", "ethiopia", "fiji", "finland", "france", "gabon", "gambia", "georgia",
+  "germany", "ghana", "greece", "grenada", "guatemala", "guinea", "guinea-bissau", "guyana",
+  "haiti", "honduras", "hong kong", "hungary", "iceland", "india", "indonesia", "iran",
+  "iraq", "ireland", "israel", "italy", "jamaica", "japan", "jordan", "kazakhstan",
+  "kenya", "kiribati", "kosovo", "kuwait", "kyrgyzstan", "laos", "latvia", "lebanon",
+  "lesotho", "liberia", "libya", "liechtenstein", "lithuania", "luxembourg", "madagascar", "malawi",
+  "malaysia", "maldives", "mali", "malta", "marshall islands", "mauritania", "mauritius", "mexico",
+  "micronesia", "moldova", "monaco", "mongolia", "montenegro", "morocco", "mozambique", "myanmar",
+  "namibia", "nauru", "nepal", "netherlands", "new zealand", "nicaragua", "niger", "nigeria",
+  "north korea", "north macedonia", "norway", "oman", "pakistan", "palau", "palestine", "panama",
+  "papua new guinea", "paraguay", "peru", "philippines", "poland", "portugal", "puerto rico", "qatar",
+  "romania", "russia", "rwanda", "saint lucia", "samoa", "san marino", "saudi arabia", "senegal",
+  "serbia", "seychelles", "sierra leone", "singapore", "slovakia", "slovenia", "solomon islands", "somalia",
+  "south africa", "south korea", "south sudan", "spain", "sri lanka", "sudan", "suriname", "sweden",
+  "switzerland", "syria", "taiwan", "tajikistan", "tanzania", "thailand", "timor-leste", "togo",
+  "tonga", "trinidad and tobago", "tunisia", "turkey", "turkiye", "turkmenistan", "tuvalu", "uganda",
+  "ukraine", "united arab emirates", "uruguay", "uzbekistan", "vanuatu", "vatican", "venezuela", "vietnam",
+  "yemen", "zambia", "zimbabwe",
+];
+
 REGIONS.emea = [...REGIONS.europe, ...REGIONS.middle_east, ...REGIONS.africa];
 REGIONS.americas = [...new Set([...REGIONS.north_america, ...REGIONS.latam])];
 
@@ -88,7 +117,7 @@ function countriesIn(text: string): string[] {
   const found = new Set<string>();
   for (const [re, name] of PLACES) if (re.test(t)) found.add(name);
   for (const [re, name] of COUNTRY_ALIASES) if (re.test(t)) found.add(name);
-  const all = new Set(Object.values(REGIONS).flat());
+  const all = new Set([...Object.values(REGIONS).flat(), ...ALL_COUNTRIES]);
   for (const c of all) {
     if (c.length <= 3) continue; // "us", "uk", "uae" handled by aliases
     if (new RegExp(`\\b${c.replace(/[.']/g, "\\$&")}\\b`).test(t)) found.add(c);

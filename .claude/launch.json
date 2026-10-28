@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "jobpilot-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "server/index.ts"],
+      "env": { "JOBPILOT_DATA_DIR": "data/dev", "PORT": "5174" },
+      "port": 5174
+    }
+  ]
+}

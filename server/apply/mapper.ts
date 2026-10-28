@@ -206,6 +206,12 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
   }
 
   // Location (never stated falsely)
+  const livesIn = f.label.match(/(?:do|are) you (?:currently )?(?:live|living|reside|residing|based|located) (?:in|within|near) (?:the )?(.{2,60}?)\??$/i);
+  if (livesIn && !/willing|able|open/.test(l)) {
+    const place = livesIn[1].toLowerCase();
+    const home = [p.city, p.country, normCountry(p.country)].filter(Boolean).map((x) => x.toLowerCase());
+    if (home.length) return ret(yesNo(f, home.some((h) => place.includes(h))), "rule", `You live in ${[p.city, p.country].filter(Boolean).join(", ")}`);
+  }
   if (/\bcountry\b/.test(l) && !/authori[sz]|sponsor|visa|eligible|legally/.test(l)) {
     if (f.options.length) return ret(pickOption(f.options, [p.country]));
     return ret(p.country);
@@ -244,12 +250,6 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
   if (/relocat/.test(l)) return { field: f, value: null, source: "user", need: "user" };
 
   // Salary, notice
-  const livesIn = f.label.match(/(?:do|are) you (?:currently )?(?:live|living|reside|residing|based|located) (?:in|within|near) (?:the )?(.{2,60}?)\??$/i);
-  if (livesIn && !/willing|able|open/.test(l)) {
-    const place = livesIn[1].toLowerCase();
-    const home = [p.city, p.country, normCountry(p.country)].filter(Boolean).map((x) => x.toLowerCase());
-    if (home.length) return ret(yesNo(f, home.some((h) => place.includes(h))), "rule", `You live in ${[p.city, p.country].filter(Boolean).join(", ")}`);
-  }
   if (!/review|read|aware|understand|acknowledge/.test(l) && /salary|compensation|pay expectation|expected (?:pay|rate)|desired (?:pay|rate)|rate expectation|hourly rate/.test(l)) return salaryValue(f, p, job);
   if (/notice period|when can you start|start date|earliest (?:start|availability)|available to start/.test(l)) return ret(p.noticePeriod || null);
 

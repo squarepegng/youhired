@@ -90,17 +90,15 @@ export const UNTRUSTED_RULE =
 
 /** Numbers (metrics, percentages, years, money) in `answer` that do not appear in the user's own profile/CV text. */
 export function inventedNumbers(answer: string, groundTruth: string): string[] {
-  const norm = (s: string) => s.replace(/[,\s]/g, "").toLowerCase();
-  const truth = norm(groundTruth);
-  const found = answer.match(/[$£€₦]?\d[\d,.]*\s?(?:%|k|m|x|\+)?/gi) ?? [];
+  const NUM = /[$£€₦]?\d[\d,.]*\s?(?:%|k\b|m\b|x\b|\+)?/gi;
+  const digitsOf = (raw: string) => raw.replace(/[^\d.]/g, "").replace(/\.$/, "");
+  const known = new Set((groundTruth.match(NUM) ?? []).map(digitsOf));
   const bad: string[] = [];
-  for (const raw of found) {
-    const n = norm(raw).replace(/[.,]$/, "");
-    const digits = n.replace(/[^\d.]/g, "");
-    if (!digits || digits.length === 0) continue;
-    if (/^\d$/.test(digits)) continue; // single digits ("2 teams") are too common to police
-    if (truth.includes(n) || truth.includes(digits)) continue;
-    bad.push(raw.trim());
+  for (const raw of answer.match(NUM) ?? []) {
+    const r = raw.trim().replace(/[.,]$/, "");
+    if (/^\d$/.test(r)) continue; // bare single digits ("2 teams") are too common to police
+    if (known.has(digitsOf(r))) continue;
+    bad.push(r);
   }
   return bad;
 }
