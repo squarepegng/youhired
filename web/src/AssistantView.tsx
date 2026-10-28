@@ -1,4 +1,4 @@
-import { ArrowUp, Check, CircleAlert, LoaderCircle, Radar, Sparkles, SquarePen, X, FileText, SkipForward, Eye, SlidersHorizontal, Send } from "lucide-react";
+import { ArrowUp, Building2, ChevronRight, Check, CircleAlert, LoaderCircle, Radar, Sparkles, SquarePen, X, FileText, SkipForward, Eye, SlidersHorizontal, Send } from "lucide-react";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "./api";
 import type { Ctx } from "./App";
@@ -6,7 +6,7 @@ import type { Job } from "./types";
 import { StatusIcon, useToast } from "./ui";
 
 interface ChatAction {
-  type: "set_brief" | "update_search" | "run_search" | "apply_jobs" | "skip_jobs" | "open_job";
+  type: "set_brief" | "update_search" | "run_search" | "apply_jobs" | "skip_jobs" | "open_job" | "add_companies";
   summary: string;
   status: "done" | "needs_confirm" | "cancelled" | "failed";
   data: { job_ids?: string[]; error?: string; brief?: string; titles?: string[] };
@@ -17,13 +17,14 @@ interface Msg {
   text: string;
   at: string;
   actions?: ChatAction[];
+  steps?: string[];
 }
 
 const SUGGESTIONS = [
   { title: "Tell it what you want", text: "I'm a senior product designer. I want remote roles at fintech or B2B SaaS companies that hire in Africa. Find them and apply to the best ones." },
-  { title: "What needs me?", text: "What's waiting on me right now?" },
+  { title: "Find more jobs", text: "What jobs can I get from Nigeria right now? Look wider than my current sources." },
   { title: "Apply in bulk", text: "Apply to every eligible job with a fit above 70." },
-  { title: "Explain", text: "Why were jobs skipped in my last search?" },
+  { title: "What needs me?", text: "What's waiting on me, and why were jobs skipped?" },
 ];
 
 export function AssistantView({ ctx }: { ctx: Ctx }) {
@@ -31,6 +32,7 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [live, setLive] = useState<string[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const connected = ctx.state.settings.hasKey || ctx.state.settings.provider === "compatible";
@@ -40,7 +42,12 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
   }, []);
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [msgs, thinking]);
+  }, [msgs, thinking, live]);
+  useEffect(() => {
+    if (!thinking) return setLive([]);
+    const t = setInterval(() => void api<{ steps: string[] }>("/api/chat/activity").then((r) => setLive(r.steps)).catch(() => {}), 900);
+    return () => clearInterval(t);
+  }, [thinking]);
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
@@ -122,6 +129,7 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
                   </div>
                 )}
                 <div className="body">
+                  {m.role === "assistant" && (m.steps?.length ?? 0) > 0 && <Steps steps={m.steps!} />}
                   {m.role === "user" ? <div className="bubble">{m.text}</div> : <Markdown text={m.text} />}
                   {m.actions?.map((a, i) => (
                     <ActionCard key={i} a={a} ctx={ctx} onResolve={(c) => resolve(m.id, i, c)} />
@@ -136,10 +144,20 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
                 <Sparkles size={13} />
               </div>
               <div className="body">
-                <div className="typing">
-                  <i />
-                  <i />
-                  <i />
+                <div className="livesteps">
+                  {live.slice(-6).map((st, i, arr) => (
+                    <div key={i} className={i === arr.length - 1 ? "now" : ""}>
+                      {i === arr.length - 1 ? <LoaderCircle size={12} className="spin" /> : <Check size={12} />}
+                      {st}
+                    </div>
+                  ))}
+                  {!live.length && (
+                    <div className="typing">
+                      <i />
+                      <i />
+                      <i />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -194,7 +212,27 @@ const ICON: Record<ChatAction["type"], ReactNode> = {
   apply_jobs: <Send size={13} />,
   skip_jobs: <SkipForward size={13} />,
   open_job: <Eye size={13} />,
+  add_companies: <Building2 size={13} />,
 };
+
+function Steps({ steps }: { steps: string[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="stepsum">
+      <button onClick={() => setOpen(!open)}>
+        <ChevronRight size={12} style={{ transform: open ? "rotate(90deg)" : undefined, transition: "transform .15s" }} />
+        {steps.length} step{steps.length === 1 ? "" : "s"}: {steps[steps.length - 1]}
+      </button>
+      {open && (
+        <ul>
+          {steps.map((s, i) => (
+            <li key={i}>{s}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function ActionCard({ a, ctx, onResolve }: { a: ChatAction; ctx: Ctx; onResolve: (confirm: boolean) => void }) {
   const jobs = (a.data.job_ids ?? []).map((id) => ctx.jobs.find((j) => j.id === id)).filter(Boolean) as (Job & { working?: boolean })[];

@@ -1,6 +1,6 @@
 import { Briefcase, CircleCheck, Command, Inbox, Radar, Search, Settings as Cog, SkipForward, Hand, User, Check, Sparkles } from "lucide-react";
 import { AssistantView } from "./AssistantView";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import { JobsView } from "./JobsView";
 import { Palette } from "./Palette";
@@ -8,7 +8,7 @@ import { ProfileView } from "./ProfileView";
 import { SearchView } from "./SearchView";
 import { SettingsView } from "./SettingsView";
 import type { AppState, Job, JobStatus } from "./types";
-import { ToastProvider } from "./ui";
+import { ToastProvider, useToast } from "./ui";
 
 export type View = "assistant" | "inbox" | "todo" | "all" | "applied" | "diy" | "skipped" | "find" | "profile" | "settings";
 
@@ -45,6 +45,31 @@ function Shell() {
   const [selected, setSelected] = useState<string | null>(null);
   const [palette, setPalette] = useState(false);
   const [err, setErr] = useState("");
+  const toast = useToast();
+  const prevStatus = useRef<Record<string, string> | null>(null);
+
+  // Tell the user when an application goes through (or needs them), even if they're on another tab.
+  useEffect(() => {
+    const prev = prevStatus.current;
+    prevStatus.current = Object.fromEntries(jobs.map((j) => [j.id, j.status]));
+    if (!prev) return;
+    for (const j of jobs) {
+      const was = prev[j.id];
+      if (!was || was === j.status) continue;
+      const msg =
+        j.status === "applied" ? `Applied: ${j.title} at ${j.company}` :
+        j.status === "needs_answer" ? `${j.company} needs your answer` :
+        j.status === "filled" ? `Ready to submit: ${j.title} at ${j.company}` :
+        j.status === "do_it_yourself" ? `${j.company}: needs you to finish on the site` : "";
+      if (!msg) continue;
+      toast(msg, j.status === "applied" || j.status === "filled" ? "ok" : "error");
+      try {
+        if ("Notification" in window && Notification.permission === "granted" && document.hidden) new Notification("JobPilot", { body: msg });
+      } catch {
+        /* notifications unavailable */
+      }
+    }
+  }, [jobs, toast]);
 
   const refresh = useCallback(async () => {
     try {
@@ -152,7 +177,7 @@ function Shell() {
           )}
           {nav("profile", "Profile", User, !state.profile.confirmed ? <span className="count" style={{ color: "var(--amber)" }}>confirm</span> : null)}
           {nav("settings", "Settings", Cog)}
-          <div className="modelchip" title={state.settings.autoSubmit ? "Auto-submit is on" : "Pauses for your review before submitting"}>
+          <div className="modelchip" title={state.settings.autoSubmit ? "Autopilot on: submits applications for you" : "Pauses for your review before submitting"}>
             <span className={`dotlive ${state.settings.hasKey || state.settings.provider === "compatible" ? "" : "off"}`} />
             {providerLabel} · {state.settings.model || "no model"}
           </div>

@@ -84,7 +84,7 @@ function splitName(full: string): { first: string; last: string } {
 export function questionCountry(label: string, job: Pick<Job, "location">): string | null {
   const l = label.toLowerCase();
   const m: [RegExp, string][] = [
-    [/\b(?:u\.?s\.?a?|united states|america)\b/, "united states"],
+    [/\b(?:u\.?s\.?a?|united states|america|h-?1b|green card|e-?verify)\b/, "united states"],
     [/\b(?:u\.?k\.?|united kingdom|britain)\b/, "united kingdom"],
     [/\bcanada\b/, "canada"],
     [/\b(?:eu|european union|europe|eea)\b/, "eu"],
@@ -177,6 +177,9 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
     return { field: f, value: null, source: "rule", note: "Optional upload skipped" };
   }
 
+  // Passwords are never filled, whatever the field is called ("Portfolio password" included).
+  if (/password|passcode|\bpin\b/.test(l)) return f.required ? { field: f, value: null, source: "user", need: "user", note: "JobPilot never enters passwords" } : { field: f, value: null, source: "rule", note: "Password field left empty" };
+
   // Answers the user already gave to this exact question before
   const saved = savedAnswer(p, f);
   if (saved) return { field: f, value: saved, source: "saved" };
@@ -185,6 +188,8 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
   if (/\bfirst[_ ]?name|given name|\bfname\b/.test(l)) return ret(p.preferredName && /prefer/.test(l) ? p.preferredName : name.first);
   if (/\blast[_ ]?name|surname|family name|\blname\b/.test(l)) return ret(name.last);
   if (/preferred (?:first )?name|nickname|name (?:you(?:'d| would)|do you) prefer/.test(l)) return ret(p.preferredName || p.legalName.split(/\s+/)[0] || null);
+  if (/pronounc|phonetic/.test(l)) return f.required ? { field: f, value: null, source: "user", need: "user" } : { field: f, value: null, source: "rule", note: "Optional, left blank" };
+  if (/preferred last name/.test(l)) return ret(name.last);
   if (/\b(?:full |legal )?name\b/.test(l) && !/company|employer|school|reference|manager|referr/.test(l)) return ret(p.legalName);
   if (f.kind === "email" || /e-?mail/.test(l)) return ret(p.email);
   if (f.kind === "tel" || /phone|mobile|whatsapp/.test(l)) {
@@ -206,12 +211,21 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
   }
 
   // Location (never stated falsely)
-  const livesIn = f.label.match(/(?:do|are) you (?:currently )?(?:live|living|reside|residing|based|located) (?:in|within|near) (?:the )?(.{2,60}?)\??$/i);
+  // "Where are you located in the United States?" assumes you live there: never answer it with a guess.
+  const whereIn = f.label.match(/^where (?:are|do) you (?:currently )?(?:live|living|reside|located|based) (?:in|within) (?:the )?(.{2,40}?)\s*(?:\(.*\))?\s*\??$/i);
+  if (whereIn) {
+    const place = whereIn[1].toLowerCase();
+    const home = [p.city, p.country, normCountry(p.country)].filter(Boolean).map((x) => x.toLowerCase());
+    if (!home.some((h) => place.includes(h) || h.includes(place)))
+      return { field: f, value: null, source: "user", need: "user", note: `This form assumes you live in ${whereIn[1]}. You don't, so this role may not be open to you.` };
+  }
+  const livesIn = f.label.match(/^(?:do|are) you (?:currently )?(?:live|living|reside|residing|based|located) (?:in|within|near) (?:the )?(.{2,60}?)\??$/i);
   if (livesIn && !/willing|able|open/.test(l)) {
     const place = livesIn[1].toLowerCase();
     const home = [p.city, p.country, normCountry(p.country)].filter(Boolean).map((x) => x.toLowerCase());
     if (home.length) return ret(yesNo(f, home.some((h) => place.includes(h))), "rule", `You live in ${[p.city, p.country].filter(Boolean).join(", ")}`);
   }
+  if (/\bcity\b/.test(l) && /\bcountry\b/.test(l) && !/authori[sz]|sponsor/.test(l) && !f.options.length) return ret([p.city, p.country].filter(Boolean).join(", ") || null);
   if (/\bcountry\b/.test(l) && !/authori[sz]|sponsor|visa|eligible|legally/.test(l)) {
     if (f.options.length) return ret(pickOption(f.options, [p.country]));
     return ret(p.country);
@@ -271,7 +285,7 @@ export function mapField(f: FormField, p: Profile, job: Pick<Job, "location" | "
     if (!f.required) return { field: f, value: null, source: "rule", note: "Optional consent left unticked" };
     return { field: f, value: f.kind === "checkbox" && f.options.length ? [f.options[0]] : "true", source: "rule", note: "Required consent box ticked: please review" };
   }
-  if (/how did you (?:hear|find|learn)|where did you (?:hear|find|see)|source/.test(l)) {
+  if (/how (?:did )?you (?:hear|heard|find|found|learn|learned|came across)|where did you (?:hear|find|see)|^source\b|referral source/.test(l)) {
     const via = { greenhouse: "Company website", lever: "Company website", ashby: "Company website", remotive: "Remotive", remoteok: "Remote OK", himalayas: "Himalayas", wwr: "We Work Remotely" }[job.source];
     if (f.options.length) return ret(pickOption(f.options, [via, "Job board", "Online job board", "Other", "Website"]), "rule");
     return ret(via, "rule");

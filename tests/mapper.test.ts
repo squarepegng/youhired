@@ -145,3 +145,26 @@ describe("EEO, consent, misc", () => {
     expect(pickOption(["Red", "Blue"], ["Decline"])).toBeNull();
   });
 });
+
+describe("questions that assume you live somewhere else", () => {
+  it("never answers 'where in the US' for someone in Nigeria", () => {
+    const r = m("Where are you located in the United States (city, state) ?");
+    expect(r.value).toBeNull();
+    expect(r.need).toBe("user");
+    expect(r.note).toMatch(/assumes you live in/);
+  });
+});
+
+it("visa names imply the country (H-1B → US)", () => {
+  expect(m("Will you now or in the future require sponsorship for employment visa status (for example, H-1B)?", "select", { options: ["Yes", "No"] }).value).toBe("Yes");
+});
+
+describe("fixes from live Ashby test", () => {
+  it("never fills password fields", () => {
+    expect(m("Portfolio Password", "text", { required: false }).value).toBeNull();
+    expect(m("Portfolio Password", "text", { required: true }).need).toBe("user");
+  });
+  it("asks how to pronounce your name", () => expect(m("How do you pronounce your name?").need).toBe("user"));
+  it("city/country question gets both", () => expect(m("What city/country will you work from?").value).toBe("Lagos, Nigeria"));
+  it("recognises 'how you heard about this role'", () => expect(m("Please share specific information on how you heard about this role").source).toBe("rule"));
+});

@@ -1,4 +1,6 @@
-import { ChevronDown, Download, Radar, Search, ArrowRight, CircleCheck, LoaderCircle } from "lucide-react";
+import { Check, ChevronDown, Download, Radar, Search, ArrowRight, CircleCheck, LoaderCircle, Send, SkipForward, X, Zap } from "lucide-react";
+import { api } from "./api";
+import { useToast } from "./ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type Ctx, JOB_VIEWS, type Step, type View } from "./App";
 import { JobDetail } from "./JobDetail";
@@ -13,6 +15,31 @@ export function JobsView({ view, ctx, steps }: { view: View; ctx: Ctx; steps: St
   const [elig, setElig] = useState<EligFilter>("any");
   const [closed, setClosed] = useState<Record<string, boolean>>({ skipped: view === "all" });
   const listRef = useRef<HTMLDivElement>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const toast = useToast();
+  const togglePick = (id: string) => setPicked((p) => {
+    const n = new Set(p);
+    n.has(id) ? n.delete(id) : n.add(id);
+    return n;
+  });
+  const applyIds = async (ids: string[]) => {
+    if (!ids.length) return;
+    try {
+      if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission();
+      const r = await api<{ added: string[]; skipped: string[] }>("/api/apply-batch", { ids });
+      toast(`Applying to ${r.added.length} job${r.added.length === 1 ? "" : "s"}${r.skipped.length ? ` (${r.skipped.length} already done or skipped)` : ""}. You'll see each one update here.`);
+      setPicked(new Set());
+      await ctx.refresh();
+    } catch (e) {
+      toast((e as Error).message, "error");
+    }
+  };
+  const skipIds = async (ids: string[]) => {
+    for (const id of ids) await api(`/api/jobs/${encodeURIComponent(id)}/status`, { status: "skipped", reason: "Skipped by you" });
+    setPicked(new Set());
+    await ctx.refresh();
+    toast(`Skipped ${ids.length} job${ids.length === 1 ? "" : "s"}`);
+  };
 
   const shown = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -81,7 +108,17 @@ export function JobsView({ view, ctx, steps }: { view: View; ctx: Ctx; steps: St
         <a className="iconbtn" href="/api/export.csv" title="Export tracker as CSV" aria-label="Export CSV">
           <Download size={15} />
         </a>
-        <button className="btn primary" onClick={() => ctx.go("find")}>
+        {(() => {
+          const ready = ctx.jobs.filter((j) => j.status === "found" && !j.needsLogin && !j.working && j.eligibility?.verdict !== "ineligible");
+          return view === "todo" || view === "inbox" ? (
+            ready.length > 0 && (
+              <button className="btn primary" onClick={() => applyIds(ready.map((j) => j.id))} title="JobPilot applies to every eligible job, one after another">
+                <Zap size={14} /> Apply to all {ready.length}
+              </button>
+            )
+          ) : null;
+        })()}
+        <button className={`btn ${view === "todo" ? "" : "primary"}`} onClick={() => ctx.go("find")}>
           <Radar size={14} /> Find jobs
         </button>
       </div>
@@ -135,7 +172,19 @@ export function JobsView({ view, ctx, steps }: { view: View; ctx: Ctx; steps: St
                   </div>
                   {!closed[g.status] &&
                     g.jobs.map((j) => (
-                      <div key={j.id} className={`row ${ctx.selected === j.id ? "sel" : ""}`} onClick={() => ctx.openJob(j.id)}>
+                      <div key={j.id} className={`row ${ctx.selected === j.id ? "sel" : ""} ${picked.has(j.id) ? "picked" : ""} ${picked.size ? "picking" : ""}`} onClick={() => ctx.openJob(j.id)}>
+                        <span
+                          className="pick"
+                          role="checkbox"
+                          aria-checked={picked.has(j.id)}
+                          aria-label={`Select ${j.title}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePick(j.id);
+                          }}
+                        >
+                          {picked.has(j.id) && <Check size={11} strokeWidth={3} />}
+                        </span>
                         {j.working ? <LoaderCircle size={14} className="spin" color="var(--accent)" aria-label="Filling" /> : <StatusIcon status={j.status} />}
                         <div className="main-col">
                           <span className="t">{j.title}</span>
@@ -156,6 +205,22 @@ export function JobsView({ view, ctx, steps }: { view: View; ctx: Ctx; steps: St
               {groups.length === 0 && <div className="empty"><p>No jobs match this filter.</p></div>}
             </div>
             {selected && <JobDetail key={selected.id} job={selected} ctx={ctx} />}
+          </div>
+        )}
+        {picked.size > 0 && (
+          <div className="bulkbar" role="toolbar" aria-label="Selected jobs">
+            <span>
+              <b>{picked.size}</b> selected
+            </span>
+            <button className="btn primary sm" onClick={() => applyIds([...picked])}>
+              <Send size={12} /> Apply
+            </button>
+            <button className="btn sm" onClick={() => skipIds([...picked])}>
+              <SkipForward size={12} /> Skip
+            </button>
+            <button className="iconbtn" aria-label="Clear selection" onClick={() => setPicked(new Set())}>
+              <X size={14} />
+            </button>
           </div>
         )}
       </div>

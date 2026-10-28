@@ -161,10 +161,10 @@ export function SettingsView({ ctx }: { ctx: Ctx }) {
           <div className="box">
             <div className="srow">
               <div className="l">
-                <b>Pause for my review before submitting</b>
-                <span>Recommended. JobPilot fills the form and stops; you check it and press Submit. Off: it submits by itself when every answer came from your profile and nothing looks odd.</span>
+                <b>Autopilot: submit applications for me</b>
+                <span>On: JobPilot fills each form and submits it, then marks it Applied once the confirmation page shows (the employer usually emails you too). Off: it fills each form and waits for you to press Submit. Either way, questions it can't answer truthfully come to your Inbox.</span>
               </div>
-              <Switch label="Pause for review" checked={!s.autoSubmit} onChange={(v) => save({ autoSubmit: !v })} />
+              <Switch label="Autopilot" checked={s.autoSubmit} onChange={(v) => save({ autoSubmit: v })} />
             </div>
             <div className="srow">
               <div className="l">

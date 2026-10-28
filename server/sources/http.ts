@@ -48,7 +48,7 @@ export function robotsAllows(rules: { allow: boolean; path: string }[], pathname
   return best ? best.allow : true;
 }
 
-async function checkRobots(u: URL): Promise<void> {
+export async function checkRobots(u: URL): Promise<void> {
   let entry = robotsCache.get(u.host);
   if (!entry) {
     let txt = "";
@@ -77,14 +77,24 @@ export async function politeGet(url: string, ttlMs: number, accept = "applicatio
   const file = path.join(dir, crypto.createHash("sha1").update(url).digest("hex") + ".txt");
   try {
     const st = fs.statSync(file);
-    if (Date.now() - st.mtimeMs < ttlMs) return fs.readFileSync(file, "utf8");
-  } catch {
+    if (Date.now() - st.mtimeMs < ttlMs) {
+      const cached = fs.readFileSync(file, "utf8");
+      if (cached === "__404__") throw new Error(`${u.host} returned 404`);
+      return cached;
+    }
+  } catch (e) {
+    if ((e as Error).message.endsWith("404")) throw e;
     /* not cached */
   }
   await checkRobots(u);
   await spacing(u.host);
   const res = await fetch(url, { headers: { "user-agent": USER_AGENT, accept } });
   if (res.status === 429) throw new Error(`${u.host} says we're asking too often. Try again later.`);
+  if (res.status === 404) {
+    // Remember misses too (the employer-form finder probes board names that may not exist).
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, "__404__");
+  }
   if (!res.ok) throw new Error(`${u.host} returned ${res.status}`);
   const body = await res.text();
   fs.mkdirSync(dir, { recursive: true });

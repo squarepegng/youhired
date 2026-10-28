@@ -6,8 +6,11 @@ import path from "node:path";
 import type { Page } from "playwright";
 import { detectAiScreening, detectInjection, isJobBoardUrl, isNeverApply } from "../guardrails.js";
 import type { LLM } from "../providers/types.js";
+import { checkLocation } from "../eligibility.js";
+import { findEmployerForm } from "../sources/index.js";
 import { DATA_DIR, cvPath, load, update } from "../store.js";
 import type { Job, PendingQuestion } from "../types.js";
+import { type AgentResult, runAgent } from "./agent.js";
 import { answerWithChecks } from "./answers.js";
 import { detectBlocker, getContext, hiddenText, pageText, readForm } from "./browser.js";
 import { fillField, findSubmit, looksSubmitted, peekComboOptions, visibleErrors } from "./filler.js";
@@ -67,8 +70,25 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   if (!fs.existsSync(cv)) throw new Error("Upload your CV in Profile first.");
   if (job.needsLogin) return save(job, "do_it_yourself", "This site needs an account. JobPilot never creates accounts or signs in.");
   if (job.ats === "job-board" || isJobBoardUrl(job.applyUrl)) {
+    log(id, `Looking for ${job.company}'s own application form…`);
+    const hit = await findEmployerForm(job.company, job.title).catch(() => null);
+    if (hit) {
+      log(id, `Found it on ${hit.ats}: ${hit.applyUrl}`);
+      const own = checkLocation(hit.location, p, "");
+      if (own.verdict === "ineligible") {
+        job.eligibility = { ...own, reason: `${own.reason} (the employer's own posting; the job board said "${job.location}")` };
+        log(id, `The employer's posting says "${hit.location}". Not open to you, so JobPilot won't apply.`);
+        return save(job, "skipped", job.eligibility.reason);
+      }
+      job.applyUrl = hit.applyUrl;
+      job.ats = hit.ats;
+      update((s) => void (s.jobs[id] = job));
+    }
+  }
+  const boardOnly = job.ats === "job-board" || isJobBoardUrl(job.applyUrl);
+  if (boardOnly && !llm) {
     const host = new URL(job.applyUrl).hostname.replace(/^www\./, "");
-    return save(job, "do_it_yourself", `This job is only listed on ${host}, which doesn't host the employer's application form or allow automated applying. Open the link and apply there.`);
+    return save(job, "do_it_yourself", `This job is listed on ${host}. Connect your AI in Settings so JobPilot can follow "Apply" to the employer's form, or open the link yourself.`);
   }
   if (job.flags.includes("ai-screening")) return save(job, "do_it_yourself", job.statusReason);
 
@@ -101,6 +121,11 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
     return save(job, "do_it_yourself", `${blocker.detail} ${opts.headless ? "Open the link to finish it yourself." : "The page is open in the JobPilot browser for you."}`);
   }
 
+  if (boardOnly && llm) {
+    log(id, "Listed on a job board: following Apply to the employer's form");
+    return finishWithAgent(job, page, llm, p, { cv }, opts);
+  }
+
   let fields = await readForm(page);
   if (!fields.some((f) => f.kind === "email" || /e-?mail/i.test(f.label))) {
     // Form not on this page yet: click Apply once.
@@ -120,8 +145,12 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   }
   const isApplication = fields.some((f) => f.kind === "file") || (fields.some((f) => /e-?mail/i.test(f.label + f.name)) && fields.some((f) => /name/i.test(f.label + f.name)));
   if (!isApplication) {
+    if (llm) {
+      log(id, "No standard form here: the AI agent takes over");
+      return finishWithAgent(job, page, llm, p, { cv }, opts);
+    }
     await page.close().catch(() => {});
-    return save(job, "do_it_yourself", "Couldn't find an application form JobPilot can fill. Open the link and apply yourself.");
+    return save(job, "do_it_yourself", "Couldn't find an application form. Connect your AI in Settings so JobPilot can work through custom pages, or open the link yourself.");
   }
   log(id, `Found ${fields.length} fields (${fields.filter((f) => f.required).length} required)`);
 
@@ -181,7 +210,20 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   const values = new Map<string, string | string[]>();
   for (const m of mapped) if (m.value != null && m.value !== "") values.set(normQ(m.field.label), m.value);
   sessions.set(id, { page, mapped, values, files });
-  const missing = await refillMissing(id);
+  let missing = await refillMissing(id);
+  if (missing.length && llm && !pending.length) {
+    log(id, `${missing.length} required field(s) still empty: the AI agent will finish them`);
+    const r = await runAgent({ page, llm, job, profile: p, files, autoSubmit: false, log: (m) => log(id, m), maxSteps: 15, hint: `The form is partly filled already. Fill only the remaining required fields: ${missing.map((f) => f.label).join("; ")}. Then answer ready_to_submit.` });
+    job.answers = [...(job.answers ?? []), ...r.answers];
+    if (r.outcome === "need_user") {
+      job.pending = r.questions.map((q, i) => ({ fieldId: `agent-${i}`, label: q.label, required: true, options: q.options.length ? q.options : undefined }));
+      await page.close().catch(() => {});
+      sessions.delete(id);
+      return save(job, "needs_answer", r.reason);
+    }
+    if (r.outcome === "blocked") return save(job, "do_it_yourself", r.reason);
+    missing = await refillMissing(id);
+  }
   await page.screenshot({ path: shotPath(id), fullPage: true }).catch(() => {});
 
   if (missing.length || pending.length) {
@@ -189,10 +231,43 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
     log(id, `Still empty after filling: ${job.pending.map((f) => f.label).join("; ")}`);
     return save(job, "filled", `Filled, but ${job.pending.length} required field(s) are still empty. Check the browser window.`);
   }
-  const flagged = job.flags.includes("hidden-instructions") || mapped.some((m) => /consent/i.test(m.note ?? ""));
+  // Autopilot still holds back pages that tried to instruct the AI.
+  const flagged = job.flags.includes("hidden-instructions");
   if (opts.autoSubmit && !opts.dryRun && !flagged) return submit(id);
   log(id, opts.dryRun ? "Demo mode: filled but not submitted." : "Filled. Waiting for your review.");
   return save(job, "filled", opts.dryRun ? "Demo: filled, not submitted" : opts.headless ? "Filled in the background. Check the screenshot, then submit." : "Ready for your review in the browser window");
+}
+
+/** Hand the page to the AI agent and turn its outcome into a tracker status. */
+async function finishWithAgent(job: Job, page: Page, llm: LLM, p: ReturnType<typeof load>["profile"], files: { cv: string; cover?: string }, opts: ApplyOptions): Promise<Job> {
+  const id = job.id;
+  const auto = opts.autoSubmit && !opts.dryRun;
+  const r: AgentResult = await runAgent({ page, llm, job, profile: p, files, autoSubmit: auto, log: (m) => log(id, m) });
+  job.answers = [...(job.answers ?? []), ...r.answers];
+  const pg = r.page;
+  sessions.set(id, { page: pg, mapped: [], values: new Map(), files });
+  await pg.screenshot({ path: shotPath(id), fullPage: true }).catch(() => {});
+  switch (r.outcome) {
+    case "submitted":
+      log(id, "Confirmation shown. Applied.");
+      return save(job, "applied", "Confirmation page shown");
+    case "ready_to_submit":
+      if (auto && !job.flags.includes("hidden-instructions")) return submit(id);
+      log(id, "Filled. Waiting for your review.");
+      return save(job, "filled", opts.headless ? "Filled in the background. Check the screenshot, then submit." : "Ready for your review in the browser window");
+    case "need_user":
+      job.pending = r.questions.map((q, i) => ({ fieldId: `agent-${i}`, label: q.label, required: true, options: q.options.length ? q.options : undefined }));
+      for (const q of job.pending) log(id, `Needs your answer: ${q.label}`);
+      await pg.close().catch(() => {});
+      sessions.delete(id);
+      return save(job, "needs_answer", r.reason);
+    case "blocked":
+      log(id, r.reason);
+      return save(job, "do_it_yourself", `${r.reason} Open the link to finish it yourself.`);
+    default:
+      log(id, `Stopped: ${r.reason}`);
+      return save(job, "error", `JobPilot couldn't finish this form: ${r.reason} Try again, or open the link.`);
+  }
 }
 
 export function shotPath(id: string): string {

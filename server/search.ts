@@ -1,7 +1,8 @@
 import { checkLocation } from "./eligibility.js";
 import { UNTRUSTED_RULE, detectAiScreening, detectInjection, isNeverApply, untrusted } from "./guardrails.js";
 import type { LLM } from "./providers/types.js";
-import { type RawJob, fetchAll } from "./sources/index.js";
+import { isJobBoardUrl } from "./guardrails.js";
+import { type RawJob, fetchAll, findEmployerForm } from "./sources/index.js";
 import { load, update } from "./store.js";
 import type { Eligibility, Job, Profile, SearchPrefs } from "./types.js";
 
@@ -154,6 +155,30 @@ export async function runSearch(llm: LLM | null): Promise<void> {
       update((s) => void (s.jobs[job.id] = job));
     }
     say(`${toScore.length} jobs passed the filters.`);
+
+    // Job-board listings: find the employer's own Greenhouse/Lever/Ashby form so JobPilot can apply there.
+    const waiting = Object.values(load().jobs).filter((j) => j.status === "found" && isJobBoardUrl(j.applyUrl) && !toScore.includes(j));
+    const boardJobs = [...toScore.filter((j) => isJobBoardUrl(j.applyUrl)), ...waiting].slice(0, 30);
+    if (boardJobs.length) say(`Looking for the employer's own application form for ${boardJobs.length} job-board listings…`);
+    for (const j of boardJobs) {
+      const hit = await findEmployerForm(j.company, j.title).catch(() => null);
+      if (!hit) continue;
+      j.applyUrl = hit.applyUrl;
+      j.ats = hit.ats;
+      j.needsLogin = false;
+      say(`${j.company}: found the ${hit.ats} form`);
+      // The employer's own posting is the source of truth for where they hire.
+      const own = checkLocation(hit.location, p, "");
+      if (own.verdict === "ineligible") {
+        j.eligibility = { ...own, reason: `${own.reason} (the employer's own posting; the job board said "${j.location}")` };
+        j.status = "skipped";
+        j.statusReason = j.eligibility.reason;
+        if (toScore.includes(j)) toScore.splice(toScore.indexOf(j), 1);
+        update((st) => void (st.jobs[j.id] = j));
+        say(`${j.company}: employer's posting says "${hit.location}", skipped`);
+      }
+      update((st) => void (st.jobs[j.id] = j));
+    }
 
     if (!llm) {
       say("No AI model set up, so jobs weren't scored. Add your key in Settings to score fit and eligibility.");

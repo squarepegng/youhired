@@ -3,7 +3,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { type BrowserContext, type Frame, type Page, chromium } from "playwright";
 import { DATA_DIR } from "../store.js";
+import { JOB_BOARD_HOSTS } from "../guardrails.js";
+import { checkRobots } from "../sources/http.js";
 import type { FormField } from "./mapper.js";
+
+/** URLs the browser refused to open because the site's robots.txt disallows them. */
+export const robotsBlocked = new Set<string>();
 
 let ctx: BrowserContext | null = null;
 let ctxHeadless = false;
@@ -34,6 +39,20 @@ export async function getContext(channel: "chrome" | "msedge" | "chromium" = "ch
         acceptDownloads: false,
       });
       ctx.on("close", () => (ctx = null));
+      // Job boards: obey robots.txt for every page the browser opens there (e.g. Himalayas disallows /apply).
+      await ctx.route(
+        (url) => JOB_BOARD_HOSTS.test(url.hostname),
+        async (route) => {
+          if (route.request().resourceType() !== "document") return route.continue();
+          try {
+            await checkRobots(new URL(route.request().url()));
+            return route.continue();
+          } catch {
+            robotsBlocked.add(route.request().url());
+            return route.abort("blockedbyclient");
+          }
+        },
+      );
       return ctx;
     } catch (e) {
       lastErr = e;

@@ -238,3 +238,51 @@ export async function fetchAll(prefs: SearchPrefs, log: (m: string) => void): Pr
   );
   return { jobs, errors };
 }
+
+// ── Employer-form finder ─────────────────────────────────────────────────────
+// Job boards (Himalayas, WWR, Remote OK) list jobs but their apply buttons need an account or are
+// closed to automated tools. Most employers also post the same role on a public Greenhouse, Lever or
+// Ashby board. We look for it through those public APIs and, if the role is there, apply on the
+// employer's own form instead.
+
+function slugCandidates(company: string): string[] {
+  const base = company
+    .toLowerCase()
+    .replace(/\b(inc|llc|ltd|limited|gmbh|corp|corporation|co|plc|s\.?a|b\.?v|technologies|technology|labs|hq|group)\b\.?/g, "")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .trim();
+  if (!base) return [];
+  const words = base.split(/\s+/);
+  return [...new Set([words.join(""), words.join("-"), words[0], `${words.join("")}hq`, `${words.join("")}inc`])].filter((s) => s.length >= 2);
+}
+
+function titleScore(a: string, b: string): number {
+  const norm = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length > 1 && !["remote", "the", "and", "for"].includes(w)));
+  const A = norm(a);
+  const B = norm(b);
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const w of A) if (B.has(w)) inter++;
+  return inter / Math.max(A.size, B.size);
+}
+
+export async function findEmployerForm(company: string, title: string): Promise<{ applyUrl: string; ats: string; url: string; location: string } | null> {
+  for (const slug of slugCandidates(company)) {
+    const tries: [string, () => Promise<RawJob[]>][] = [
+      ["ashby", () => ashby(slug)],
+      ["greenhouse", () => greenhouse(slug)],
+      ["lever", () => lever(slug)],
+    ];
+    for (const [ats, fn] of tries) {
+      let jobs: RawJob[] = [];
+      try {
+        jobs = await fn();
+      } catch {
+        continue; // no board under this name
+      }
+      const best = jobs.map((j) => ({ j, s: titleScore(j.title, title) })).sort((x, y) => y.s - x.s)[0];
+      if (best && best.s >= 0.75) return { applyUrl: best.j.applyUrl, ats, url: best.j.url, location: best.j.location };
+    }
+  }
+  return null;
+}

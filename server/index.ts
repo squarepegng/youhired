@@ -4,7 +4,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import multer from "multer";
 import { applyBlocker, configureQueue, currentApply, enqueue, queued } from "./apply/queue.js";
 import { closeSession, hasSession, logs, shotPath, submit } from "./apply/runner.js";
-import { chat, configureAssistant, resolveAction } from "./assistant.js";
+import { activity, chat, configureAssistant, resolveAction } from "./assistant.js";
 import { cvToText, extractProfile, mergeExtract } from "./cv.js";
 import { detectAts, hostNeedsLogin } from "./guardrails.js";
 import { PROVIDERS, makeLLM, testConnection } from "./providers/index.js";
@@ -145,6 +145,13 @@ app.post("/api/jobs/:id/apply", (req, res) => {
   res.json({ started: true, position: queued().length });
 });
 
+app.post("/api/apply-batch", (req, res) => {
+  const ids = ((req.body as { ids?: string[] }).ids ?? []).filter((id) => load().jobs[id]);
+  const block = applyBlocker();
+  if (block) return res.status(400).json({ error: block });
+  res.json(enqueue(ids));
+});
+
 app.post("/api/jobs/:id/submit", wrap(async (req, res) => {
   res.json(await submit(String(req.params.id)));
 }));
@@ -188,6 +195,7 @@ app.get("/api/jobs/:id/log", (req, res) => {
 
 // ── Assistant ──
 app.get("/api/chat", (_req, res) => res.json({ messages: load().chat, applying: currentApply(), queued: queued() }));
+app.get("/api/chat/activity", (_req, res) => res.json(activity));
 app.post("/api/chat", wrap(async (req, res) => {
   const text = String((req.body as { text?: string }).text ?? "").trim();
   if (!text) throw new Error("Type a message first.");

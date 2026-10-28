@@ -131,7 +131,7 @@ export interface Job {
 }
 
 export interface ChatAction {
-  type: "set_brief" | "update_search" | "run_search" | "apply_jobs" | "skip_jobs" | "open_job";
+  type: "set_brief" | "update_search" | "run_search" | "apply_jobs" | "skip_jobs" | "open_job" | "add_companies";
   summary: string; // plain-language line shown in the chat
   status: "done" | "needs_confirm" | "cancelled" | "failed";
   data: Record<string, unknown>;
@@ -143,6 +143,7 @@ export interface ChatMessage {
   text: string;
   at: string;
   actions?: ChatAction[];
+  steps?: string[]; // what the assistant did along the way (searched, read, checked…)
 }
 
 export interface Store {
