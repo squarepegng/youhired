@@ -6,6 +6,7 @@ import { detectAts, findAtsLink, hostNeedsLogin, isJobBoardUrl } from "../guardr
 import type { Job, SearchPrefs, SourceId } from "../types.js";
 import { htmlToText, politeGet } from "./http.js";
 import { arbeitnow, hnHiring, jobicy, workingNomads } from "./more.js";
+import { VC_BOARDS, bamboohr, breezy, considerBoard, fourDayWeek, getroBoard, jobspresso, nodesk, smartrecruiters, speedrun, startupJobs, teamtailor } from "./vc.js";
 
 export type RawJob = Omit<Job, "status" | "statusDate" | "foundAt" | "flags"> & { hiddenText: string[] };
 
@@ -230,6 +231,12 @@ export async function wwr(titles: string[]): Promise<RawJob[]> {
 }
 
 export const SOURCE_LABELS: Record<SourceId, string> = {
+  vc: "Investor portfolio boards (Sequoia, Lightspeed, GV, Bessemer, First Round, Atomico…)",
+  funded: "Newly funded startups (TechCrunch, PR Newswire)",
+  fourdayweek: "4 Day Week",
+  nodesk: "NoDesk",
+  jobspresso: "Jobspresso",
+  startupjobs: "startup.jobs",
   yc: "Y Combinator startups",
   hn: "Hacker News: Who is hiring",
   jobicy: "Jobicy",
@@ -260,6 +267,15 @@ export async function fetchAll(prefs: SearchPrefs, log: (m: string) => void): Pr
   if (prefs.sources.hn) tasks.push(["Hacker News: Who is hiring", () => hnHiring(prefs.titles)]);
   for (const c of prefs.recruiteeCompanies ?? []) tasks.push([`Recruitee/${c}`, () => recruitee(c)]);
   for (const c of prefs.workableAccounts ?? []) tasks.push([`Workable/${c}`, () => workable(c)]);
+  for (const b of prefs.otherBoards ?? []) tasks.push([`${b.ats}/${b.slug}`, () => ({ breezy, teamtailor, bamboohr, smartrecruiters })[b.ats](b.slug)]);
+  if (prefs.sources.vc) {
+    for (const b of VC_BOARDS) tasks.push([`${b.name} portfolio`, () => (b.platform === "getro" ? getroBoard(b.name, b.url, prefs.titles) : considerBoard(b.name, b.url, prefs.titles))]);
+    tasks.push(["a16z speedrun talent network", () => speedrun(prefs.titles)]);
+  }
+  if (prefs.sources.fourdayweek) tasks.push(["4 Day Week", () => fourDayWeek()]);
+  if (prefs.sources.nodesk) tasks.push(["NoDesk", () => nodesk()]);
+  if (prefs.sources.jobspresso) tasks.push(["Jobspresso", () => jobspresso()]);
+  if (prefs.sources.startupjobs) tasks.push(["startup.jobs", () => startupJobs(prefs.titles)]);
 
   const jobs: RawJob[] = [];
   const errors: string[] = [];

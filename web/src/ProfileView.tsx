@@ -54,6 +54,21 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
   };
 
   const [reading, setReading] = useState(false);
+  const [building, setBuilding] = useState(false);
+  const buildStoryBank = async () => {
+    setBuilding(true);
+    try {
+      await api("/api/profile", p);
+      const r = await api<{ profile: Profile }>("/api/stories/build", {});
+      setP(r.profile);
+      await ctx.refresh();
+      toast(`Built ${r.profile.stories?.length ?? 0} stories from your documents.`);
+    } catch (e) {
+      toast((e as Error).message, "error");
+    } finally {
+      setBuilding(false);
+    }
+  };
   const uploadLinkedIn = async (file: File) => {
     try {
       const fd = new FormData();
@@ -229,6 +244,35 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
                   </div>
                 </div>
               </div>
+              <div className="group-title" style={{ display: "flex", alignItems: "center" }}>
+                Your stories
+                <button className="btn ghost sm" style={{ marginLeft: "auto" }} disabled={!p.cvText || building} onClick={buildStoryBank}>
+                  {building ? <LoaderCircle size={12} className="spin" /> : <FileText size={12} />} {p.stories?.length ? "Rebuild from my documents" : "Build from my documents"}
+                </button>
+              </div>
+              <p className="group-desc">Your strongest career stories. JobPilot uses them for "tell us about a time…" questions, so answers sound like you. Edit or remove any.</p>
+              {(p.stories ?? []).length > 0 ? (
+                <div className="box">
+                  {p.stories!.map((st, i) => (
+                    <div className="srow stack" key={i}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <input value={st.title} onChange={(e) => set({ stories: p.stories!.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)) })} style={{ fontWeight: 500 }} />
+                        <button className="iconbtn" aria-label="Remove story" onClick={() => set({ stories: p.stories!.filter((_, j) => j !== i) })}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <textarea rows={3} value={`${st.situation}\n${st.action}\n${st.result}`} onChange={(e) => {
+                        const [situation = "", action = "", ...rest] = e.target.value.split("\n");
+                        set({ stories: p.stories!.map((x, j) => (j === i ? { ...x, situation, action, result: rest.join(" ") } : x)) });
+                      }} />
+                      <span className="faint" style={{ fontSize: 11.5 }}>{st.tags.join(" · ")}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="faint" style={{ fontSize: 12.5 }}>No stories yet.</p>
+              )}
+
               {p.experience.length > 0 && (
                 <>
                   <div className="group-title">Experience</div>

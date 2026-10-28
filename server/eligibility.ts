@@ -75,7 +75,7 @@ const REGION_WORDS: [RegExp, string][] = [
 ];
 
 const COUNTRY_ALIASES: [RegExp, string][] = [
-  [/\b(?:us|u\.s\.a?\.?|usa|united states|america)\b(?! ?(?:dollars?|\$))/, "united states"],
+  [/(?<![\w.])(?:us|u\.s\.(?:a\.)?|usa|united states|america)(?![\w])(?! ?(?:dollars?|\$))/, "united states"],
   [/\b(?:uk|u\.k\.|united kingdom|britain|england|scotland)\b/, "united kingdom"],
   [/\bcanada\b/, "canada"],
   [/\buae\b|\bunited arab emirates\b|\bdubai\b/, "united arab emirates"],
@@ -101,6 +101,7 @@ export function normCountry(c: string): string {
 
 // Common cities/states that imply a country when the posting gives no country name.
 const PLACES: [RegExp, string][] = [
+  [/\b(?:alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|wisconsin|wyoming)\b/, "united states"],
   [/\b(?:san francisco|new york|nyc|seattle|austin|boston|chicago|los angeles|denver|atlanta|miami|washington,? dc|bay area|silicon valley)\b|,\s?(?:ca|ny|tx|wa|ma|co|il|fl|ga)\b/, "united states"],
   [/\b(?:london|manchester|edinburgh)\b/, "united kingdom"],
   [/\b(?:toronto|vancouver|montreal)\b/, "canada"],

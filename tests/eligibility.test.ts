@@ -140,3 +140,8 @@ describe("new sources helpers", () => {
     expect(v("Onsite (Lagos)")).toBe("eligible");
   });
 });
+
+describe("US wording variants", () => {
+  it.each(["Remote, Kansas, U.S.", "Remote (U.S.A.)", "Remote — Texas", "Remote, US"])("%s → ineligible", (loc) => expect(v(loc)).toBe("ineligible"));
+  it("doesn't read 'us' inside words or 'Join us'", () => expect(v("Remote, anywhere — join us")).toBe("eligible"));
+});

@@ -47,6 +47,7 @@ export function defaultProfile(): Profile {
     linkedinText: "",
     portfolioText: "",
     currentCompensation: "",
+    stories: [],
     confirmed: false,
   };
 }
@@ -57,7 +58,7 @@ export function defaultSearch(): SearchPrefs {
     titles: ["product designer"],
     excludeKeywords: ["intern"],
     jobTypes: ["full_time", "contract"],
-    sources: { greenhouse: true, lever: true, ashby: true, remotive: false, remoteok: true, himalayas: true, wwr: true, jobicy: true, workingnomads: true, arbeitnow: true, hn: true, yc: true },
+    sources: { greenhouse: true, lever: true, ashby: true, remotive: false, remoteok: true, himalayas: true, wwr: true, jobicy: true, workingnomads: true, arbeitnow: true, hn: true, yc: true, vc: true, funded: true, fourdayweek: false, nodesk: true, jobspresso: false, startupjobs: true },
     // Public job boards of companies known to hire remotely. Add your own in Search settings.
     greenhouseBoards: ["gitlab", "automatticcareers", "canonical", "elastic", "grafanalabs", "wikimedia", "vercel"],
     leverCompanies: ["toptal"],
@@ -66,13 +67,15 @@ export function defaultSearch(): SearchPrefs {
     workableAccounts: [],
     ycChecked: [],
     ycPerSearch: 80,
+    otherBoards: [],
+    fundedChecked: [],
     maxAgeDays: 30,
     maxToScore: 40,
   };
 }
 
 export function defaultSettings(): Settings {
-  return { provider: "anthropic", model: "claude-opus-5-5", apiKey: "", baseUrl: "", autoSubmit: false, browserChannel: "chrome", background: false, connectedSites: [] };
+  return { provider: "anthropic", model: "claude-opus-5-5", apiKey: "", baseUrl: "", autoSubmit: false, browserChannel: "chrome", background: false, connectedSites: [], tailorCv: true };
 }
 
 let cache: Store | null = null;

@@ -168,6 +168,13 @@ export function SettingsView({ ctx }: { ctx: Ctx }) {
             </div>
             <div className="srow">
               <div className="l">
+                <b>Tailor my CV for each job</b>
+                <span>JobPilot rewrites your CV around each role's needs, using only facts from your documents, and checks every employer, title and number before using it. If anything fails the check, your original CV is sent instead.</span>
+              </div>
+              <Switch label="Tailor CV" checked={s.tailorCv !== false} onChange={(v) => save({ tailorCv: v })} />
+            </div>
+            <div className="srow">
+              <div className="l">
                 <b>Work in the background</b>
                 <span>On: no browser window pops up. JobPilot fills forms out of sight and you review them from the screenshot here, then press Submit. Off: you watch it fill each form in a Chrome window.</span>
               </div>

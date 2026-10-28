@@ -7,6 +7,8 @@ import type { Page } from "playwright";
 import { detectAiScreening, detectInjection, isJobBoardUrl, isNeverApply } from "../guardrails.js";
 import type { LLM } from "../providers/types.js";
 import { alreadyApplied, appliedReason } from "../dedupe.js";
+import { checkLiveness } from "../liveness.js";
+import { tailorCv } from "../tailor.js";
 import { checkLocation } from "../eligibility.js";
 import { connectedHosts } from "../sites.js";
 import { findEmployerForm } from "../sources/index.js";
@@ -73,8 +75,8 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   if (dup) return save(job, "skipped", appliedReason(dup));
   if (isNeverApply(job.company, p.neverApply)) return save(job, "skipped", "On your never-apply list");
   if (!p.confirmed && !opts.profileOverride) throw new Error("Confirm your profile facts first (Profile → Confirm).");
-  const cv = opts.cvOverride ?? cvPath();
-  if (!fs.existsSync(cv)) throw new Error("Upload your CV in Profile first.");
+  const cvFile = opts.cvOverride ?? cvPath();
+  if (!fs.existsSync(cvFile)) throw new Error("Upload your CV in Profile first.");
   const host = (() => {
     try {
       return new URL(job.applyUrl).hostname.replace(/^www\./, "");
@@ -110,6 +112,27 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   }
   // Employers that ban AI-written answers: JobPilot fills the facts, you write the open answers.
   let ownWords = job.flags.includes("ai-screening");
+
+  // Still open? (Cheap check before opening a browser.)
+  if (!opts.dryRun || process.env.JOBPILOT_CHECK_LIVENESS) {
+    const live = await checkLiveness(job);
+    log(id, live.open === false ? `Posting closed: ${live.reason}` : `Still open: ${live.reason}`);
+    if (live.open === false) return save(job, "skipped", `This posting has closed. ${live.reason}.`);
+  }
+
+  // A CV tailored to this job (fact-checked); falls back to your original file.
+  let cv = cvFile;
+  if (llm && store.settings.tailorCv !== false && !opts.cvOverride) {
+    try {
+      const t = await tailorCv(llm, p, job, (m) => log(id, m));
+      if (t) {
+        cv = t;
+        log(id, "Tailored your CV for this role (same facts, re-emphasised).");
+      }
+    } catch (e) {
+      log(id, `Couldn't tailor the CV (${(e as Error).message.slice(0, 80)}); using your original.`);
+    }
+  }
 
   const ctx = await getContext(opts.channel, opts.headless);
   const old = sessions.get(id);

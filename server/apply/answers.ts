@@ -102,6 +102,7 @@ export async function writeAnswers(
         content: [
           `Candidate profile (trusted):\n${JSON.stringify({ name: p.preferredName || p.legalName, headline: p.headline, summary: p.summary, years: p.yearsExperience, skills: p.skills, experience: p.experience, education: p.education, links: p.links })}`,
           `The candidate's own documents (trusted):\n${knowledge(p)}`,
+          p.stories?.length ? `The candidate's story bank (trusted; use these for "tell us about a time" questions):\n${p.stories.map((s) => `- ${s.title}. Situation: ${s.situation} What I did: ${s.action} Result: ${s.result}`).join("\n")}` : "",
           p.savedAnswers.length ? `Answers the candidate gave before (trusted):\n${p.savedAnswers.map((s) => `- ${s.question}: ${s.answer}`).join("\n")}` : "",
           `Role: ${job.title} at ${job.company}`,
           untrusted("job_posting", job.description, 8000),

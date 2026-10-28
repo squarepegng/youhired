@@ -11,6 +11,7 @@ export interface Settings {
   browserChannel: "chrome" | "msedge" | "chromium";
   background: boolean; // run the browser hidden (headless); review via screenshots in the app
   connectedSites: { id: string; name: string; host: string; connectedAt: string }[]; // sites you signed in to yourself
+  tailorCv: boolean; // send a CV tailored to each job (fact-checked); off = always your original file
 }
 
 export type WorkAuthStatus = "citizen" | "authorized" | "needs_sponsorship" | "not_authorized";
@@ -31,6 +32,14 @@ export interface Experience {
   end?: string;
   location?: string;
   highlights: string[];
+}
+
+export interface Story {
+  title: string;
+  situation: string;
+  action: string;
+  result: string;
+  tags: string[];
 }
 
 export interface Profile {
@@ -64,6 +73,7 @@ export interface Profile {
   cvText: string;
   linkedinText: string; // from LinkedIn's "Save to PDF" export, if uploaded
   portfolioText: string; // read from your portfolio site
+  stories: Story[]; // your strongest career stories, reused for "tell us about a time" questions
   currentCompensation: string; // e.g. "₦18,000,000 per year": used for "current/most recent CTC" questions
   confirmed: boolean;
 }
@@ -81,11 +91,13 @@ export interface SearchPrefs {
   workableAccounts: string[];
   ycChecked: string[]; // YC company slugs already checked for job boards
   ycPerSearch: number; // how many new YC startups to check per search
+  otherBoards: { ats: "breezy" | "teamtailor" | "bamboohr" | "smartrecruiters"; slug: string }[];
+  fundedChecked: string[]; // recently funded companies already checked for job boards
   maxAgeDays: number;
   maxToScore: number; // cap on AI calls per search
 }
 
-export type SourceId = "greenhouse" | "lever" | "ashby" | "remotive" | "remoteok" | "himalayas" | "wwr" | "jobicy" | "workingnomads" | "arbeitnow" | "hn" | "yc";
+export type SourceId = "greenhouse" | "lever" | "ashby" | "remotive" | "remoteok" | "himalayas" | "wwr" | "jobicy" | "workingnomads" | "arbeitnow" | "hn" | "yc" | "vc" | "funded" | "fourdayweek" | "nodesk" | "jobspresso" | "startupjobs";
 
 export type JobStatus =
   | "found"

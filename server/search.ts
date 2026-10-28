@@ -4,7 +4,8 @@ import { UNTRUSTED_RULE, detectAiScreening, detectInjection, isNeverApply, untru
 import type { LLM } from "./providers/types.js";
 import { isJobBoardUrl } from "./guardrails.js";
 import { type RawJob, fetchAll, findEmployerForm } from "./sources/index.js";
-import { type BoardHit, discoverYcStartups } from "./sources/more.js";
+import { type BoardHit, discoverYcStartups, findBoard } from "./sources/more.js";
+import { recentlyFunded } from "./sources/vc.js";
 import { load, update } from "./store.js";
 import type { Eligibility, Job, Profile, SearchPrefs } from "./types.js";
 
@@ -125,6 +126,41 @@ export function triage(raw: RawJob, prefs: SearchPrefs, p: Profile, now = Date.n
   return { keep: true, status: "found", eligibility, flags };
 }
 
+function addBoard(all: SearchPrefs, h: BoardHit): void {
+  if (h.ats === "breezy" || h.ats === "teamtailor" || h.ats === "bamboohr" || h.ats === "smartrecruiters") {
+    all.otherBoards ??= [];
+    if (!all.otherBoards.some((b) => b.ats === h.ats && b.slug === h.slug)) all.otherBoards.push({ ats: h.ats, slug: h.slug });
+    return;
+  }
+  const list = h.ats === "ashby" ? all.ashbyOrgs : h.ats === "greenhouse" ? all.greenhouseBoards : h.ats === "lever" ? all.leverCompanies : h.ats === "recruitee" ? (all.recruiteeCompanies ??= []) : (all.workableAccounts ??= []);
+  if (!list.includes(h.slug)) list.push(h.slug);
+}
+
+/** Companies that just raised money tend to be hiring: find their job boards from funding headlines. */
+export async function discoverFunded(say: (m: string) => void): Promise<BoardHit[]> {
+  const prefs = load().search;
+  const seen = new Set(prefs.fundedChecked ?? []);
+  const fresh = (await recentlyFunded().catch(() => [])).filter((c) => !seen.has(c.company.toLowerCase())).slice(0, 40);
+  if (!fresh.length) return [];
+  say(`Checking ${fresh.length} recently funded companies for job boards…`);
+  const hits: BoardHit[] = [];
+  for (const c of fresh) {
+    const h = await findBoard(c.company, [], prefs.titles).catch(() => null);
+    if (h) {
+      hits.push(h);
+      if (h.matching.length) say(`${c.company} (just raised: "${c.headline.slice(0, 70)}"): ${h.matching.length} matching role${h.matching.length === 1 ? "" : "s"}`);
+    }
+  }
+  update((s) => {
+    const all = JSON.parse(JSON.stringify(s.search)) as SearchPrefs;
+    for (const h of hits) if (h.matching.length) addBoard(all, h);
+    all.fundedChecked = [...new Set([...(all.fundedChecked ?? []), ...fresh.map((c) => c.company.toLowerCase())])];
+    s.search = all;
+  });
+  say(`Funded startups: checked ${fresh.length}, found ${hits.length} job boards, ${hits.filter((h) => h.matching.length).length} with roles like yours.`);
+  return hits;
+}
+
 /** Check new YC startups for job boards; boards with matching roles are added to your sources. */
 export async function discoverStartups(limit: number, say: (m: string) => void): Promise<BoardHit[]> {
   const prefs = load().search;
@@ -136,8 +172,7 @@ export async function discoverStartups(limit: number, say: (m: string) => void):
   update((s) => {
     const all = JSON.parse(JSON.stringify(s.search)) as SearchPrefs;
     for (const h of useful) {
-      const list = h.ats === "ashby" ? all.ashbyOrgs : h.ats === "greenhouse" ? all.greenhouseBoards : h.ats === "lever" ? all.leverCompanies : h.ats === "recruitee" ? (all.recruiteeCompanies ??= []) : (all.workableAccounts ??= []);
-      if (!list.includes(h.slug)) list.push(h.slug);
+      addBoard(all, h);
     }
     // Remember who we checked so the next search looks at new startups.
     all.ycChecked = [...new Set([...(all.ycChecked ?? []), ...checked])];
@@ -156,6 +191,7 @@ export async function runSearch(llm: LLM | null): Promise<void> {
   };
   try {
     if (load().search.sources.yc) await discoverStartups(load().search.ycPerSearch ?? 80, say);
+    if (load().search.sources.funded) await discoverFunded(say);
     const { search: prefs, profile: p, jobs: existing } = load();
     say("Fetching postings from public sources…");
     const { jobs: raws, errors } = await fetchAll(prefs, say);

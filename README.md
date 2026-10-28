@@ -236,6 +236,16 @@ tests/                vitest
 scripts/demo-greenhouse.ts
 ```
 
+## Credits
+
+Some sources and ideas were learned from **[career-ops](https://github.com/career-ops-hq/career-ops)** (MIT licence, © its contributors):
+- the investor portfolio boards (Consider platform) and the a16z speedrun network
+- the startup.jobs, NoDesk, Breezy, Teamtailor, BambooHR and SmartRecruiters endpoints
+- finding newly funded companies from funding news
+- the "still open?" check, per-job tailored CVs with a fact check, and the story bank
+
+JobPilot's code for these is its own. career-ops deliberately never submits an application; JobPilot does, within the guardrails above.
+
 ## Known limits
 
 - **Supported forms.** Built and tested against Greenhouse forms. Lever, Ashby, Workable and Recruitee use the same generic reader and filler, but each site has quirks. Watch the first few runs and use **Fill again** if something was missed.

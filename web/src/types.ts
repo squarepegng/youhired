@@ -12,6 +12,7 @@ export interface Settings {
   autoSubmit: boolean;
   browserChannel: "chrome" | "msedge" | "chromium";
   background: boolean;
+  tailorCv?: boolean;
 }
 
 export interface Profile {
@@ -43,10 +44,11 @@ export interface Profile {
   linkedinText?: string;
   portfolioText?: string;
   currentCompensation?: string;
+  stories?: { title: string; situation: string; action: string; result: string; tags: string[] }[];
   confirmed: boolean;
 }
 
-export type SourceId = "greenhouse" | "lever" | "ashby" | "remotive" | "remoteok" | "himalayas" | "wwr" | "jobicy" | "workingnomads" | "arbeitnow" | "hn" | "yc";
+export type SourceId = "greenhouse" | "lever" | "ashby" | "remotive" | "remoteok" | "himalayas" | "wwr" | "jobicy" | "workingnomads" | "arbeitnow" | "hn" | "yc" | "vc" | "funded" | "fourdayweek" | "nodesk" | "jobspresso" | "startupjobs";
 
 export interface SearchPrefs {
   brief?: string;
@@ -61,6 +63,7 @@ export interface SearchPrefs {
   workableAccounts?: string[];
   ycChecked?: string[];
   ycPerSearch?: number;
+  fundedChecked?: string[];
   maxAgeDays: number;
   maxToScore: number;
 }
@@ -92,6 +95,7 @@ export interface Job {
   handoff?: "captcha" | "own_words";
   hasSession?: boolean;
   working?: boolean;
+  tailoredCv?: boolean;
 }
 
 export interface ProviderInfo {

@@ -12,6 +12,8 @@ import { progress, runSearch } from "./search.js";
 import { SOURCE_LABELS } from "./sources/index.js";
 import { DATA_DIR, load, maskKey, setStatus, update } from "./store.js";
 import { readPortfolio } from "./portfolio.js";
+import { buildStories } from "./stories.js";
+import { tailoredPath } from "./tailor.js";
 import { SITES, disconnect, markConnected, openSignIn } from "./sites.js";
 import { toCsv } from "./tracker.js";
 import type { Job, Profile, SearchPrefs, Settings } from "./types.js";
@@ -110,6 +112,23 @@ app.post("/api/portfolio/read", wrap(async (_req, res) => {
   res.json({ pages: r.pages.length, chars: r.text.length, profile: s.profile });
 }));
 
+app.post("/api/stories/build", wrap(async (_req, res) => {
+  const p = load().profile;
+  if (!p.cvText) throw new Error("Upload your CV first.");
+  const stories = await buildStories(makeLLM(load().settings), p);
+  const s = update((st) => void (st.profile.stories = stories));
+  res.json({ profile: s.profile });
+}));
+
+app.get("/api/jobs/:id/cv", (req, res) => {
+  const job = load().jobs[String(req.params.id)];
+  if (!job) return res.status(404).end();
+  const f = tailoredPath(job, load().profile);
+  if (!fs.existsSync(f)) return res.status(404).end();
+  res.setHeader("content-type", "application/pdf");
+  res.sendFile(f);
+});
+
 app.post("/api/search/prefs", (req, res) => {
   const s = update((st) => {
     st.search = { ...st.search, ...(req.body as Partial<SearchPrefs>) };
@@ -128,7 +147,8 @@ app.get("/api/search/progress", (_req, res) => res.json(progress));
 app.get("/api/jobs", (_req, res) => {
   const q = queued();
   const cur = currentApply();
-  const jobs = Object.values(load().jobs).map((j) => ({ ...j, description: j.description.slice(0, 4000), hasSession: hasSession(j.id), working: cur === j.id || q.includes(j.id) }));
+  const prof = load().profile;
+  const jobs = Object.values(load().jobs).map((j) => ({ ...j, description: j.description.slice(0, 4000), hasSession: hasSession(j.id), working: cur === j.id || q.includes(j.id), tailoredCv: fs.existsSync(tailoredPath(j, prof)) }));
   res.json(jobs);
 });
 

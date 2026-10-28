@@ -15,6 +15,12 @@ interface Progress {
 }
 
 const SOURCE_INFO: Record<SourceId, string> = {
+  vc: "Job boards that Sequoia, Lightspeed, Kleiner Perkins, GV, Bessemer, First Round, Insight Partners, Atomico and other investors run for their whole portfolio, plus a16z's speedrun network. Funded startups only.",
+  funded: "Reads funding news (TechCrunch, PR Newswire), finds the job boards of companies that just raised, and adds the ones with roles like yours.",
+  fourdayweek: "Off: 4 Day Week's robots.txt asks tools not to use its API, so JobPilot won't fetch it.",
+  nodesk: "Remote-only job board feed.",
+  jobspresso: "Off: Jobspresso's robots.txt asks tools not to read its feed, so JobPilot won't fetch it.",
+  startupjobs: "Newest remote startup jobs for your titles.",
   yc: "Finds Y Combinator startups that are hiring and remote-friendly (newest batches first), checks their job boards, and adds the ones with roles like yours.",
   hn: "The monthly Hacker News \"Who is hiring?\" thread: hundreds of startups, many linking straight to their application form.",
   jobicy: "Remote-only job board API.",

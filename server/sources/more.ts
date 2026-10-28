@@ -6,6 +6,7 @@ import { findAtsLink } from "../guardrails.js";
 import type { SourceId } from "../types.js";
 import { htmlToText, politeGet } from "./http.js";
 import { type RawJob, ashby, greenhouse, lever, mkJob, recruitee, workable } from "./index.js";
+import { bamboohr, breezy, smartrecruiters, teamtailor } from "./vc.js";
 
 const HOUR = 3600_000;
 
@@ -108,18 +109,18 @@ const batchRank = (b = "") => {
   return m ? +m[2] * 4 + ["Winter", "Spring", "Summer", "Fall"].indexOf(m[1]) : 0;
 };
 
-export type BoardHit = { company: string; ats: "ashby" | "greenhouse" | "lever" | "recruitee" | "workable"; slug: string; openRoles: number; matching: string[] };
+export type BoardHit = { company: string; ats: "ashby" | "greenhouse" | "lever" | "recruitee" | "workable" | "breezy" | "teamtailor" | "bamboohr" | "smartrecruiters"; slug: string; openRoles: number; matching: string[] };
 
 /** Find which ATS a company uses, by trying its likely handles on each public board API. */
 export async function findBoard(name: string, extraSlugs: string[], titles: string[]): Promise<BoardHit | null> {
   const base = name.toLowerCase().replace(/[^a-z0-9 ]/g, " ").trim();
   const slugs = [...new Set([...extraSlugs, base.replace(/\s+/g, ""), base.replace(/\s+/g, "-")])].filter((s) => s.length >= 2);
-  const tries: [BoardHit["ats"], (s: string) => Promise<RawJob[]>][] = [["ashby", ashby], ["lever", lever], ["greenhouse", greenhouse], ["workable", workable], ["recruitee", recruitee]];
+  const tries: [BoardHit["ats"], (s: string) => Promise<RawJob[]>][] = [["ashby", ashby], ["lever", lever], ["greenhouse", greenhouse], ["workable", workable], ["recruitee", recruitee], ["teamtailor", teamtailor], ["breezy", breezy], ["bamboohr", bamboohr], ["smartrecruiters", smartrecruiters]];
   for (const s of slugs)
     for (const [ats, fn] of tries) {
       try {
         const jobs = await fn(s);
-        if (!jobs.length && (ats === "workable" || ats === "recruitee")) continue; // these answer 200 for unknown names
+        if (!jobs.length && ats !== "ashby" && ats !== "lever" && ats !== "greenhouse") continue; // these can answer 200 for unknown names
         const matching = jobs.filter((j) => matchesTitle(j.title, titles)).map((j) => `${j.title} [${j.location.slice(0, 40)}]`);
         return { company: name, ats, slug: s, openRoles: jobs.length, matching };
       } catch {

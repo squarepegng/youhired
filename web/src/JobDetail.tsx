@@ -155,6 +155,18 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
           )}
         </div>
 
+        {job.tailoredCv && (
+          <div className="callout green">
+            <Sparkles size={14} />
+            <span>
+              JobPilot sent a CV tailored to this role: same facts, re-ordered and re-emphasised for it.{" "}
+              <a href={`/api/jobs/${id}/cv`} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
+                View the tailored CV ↗
+              </a>
+            </span>
+          </div>
+        )}
+
         {(job.answers?.length ?? 0) > 0 && (
           <div className="section">
             <div className="sh">
