@@ -389,8 +389,10 @@ export async function runAgent(opts: {
   }
 }
 
-function optionMatches(option: string, want: string): boolean {
-  const o = option.trim().toLowerCase();
-  const w = want.trim().toLowerCase();
+export function optionMatches(option: string, want: string): boolean {
+  const n = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const o = n(option);
+  const w = n(want);
+  if (!o || !w) return false;
   return o === w || o.startsWith(w) || w.startsWith(o) || o.includes(w);
 }

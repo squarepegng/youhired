@@ -187,3 +187,9 @@ describe("agent fact checks", () => {
     expect(factFor({ kind: "text", label: "If you are based in the U.S. please provide your zipcode:", options: [], required: true }, prof, job as any)?.leaveBlank).toBe(true);
   });
 });
+
+it("option matching ignores case and punctuation", async () => {
+  const { optionMatches } = await import("../server/apply/agent.js");
+  expect(optionMatches("Decline To Self Identify", "Decline to self-identify")).toBe(true);
+  expect(optionMatches("Yes", "No")).toBe(false);
+});

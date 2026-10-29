@@ -33,7 +33,8 @@ export function authorised(code: string | undefined): boolean {
 }
 
 export function extensionStatus(): { connected: boolean; lastSeen: number; version: string } {
-  return { connected: Date.now() - lastSeen < 30_000, lastSeen, version: extVersion };
+  // Connected = the extension is waiting for work right now, or checked in recently.
+  return { connected: pollers.length > 0 || Date.now() - lastSeen < 45_000, lastSeen, version: extVersion };
 }
 
 export function extensionConnected(): boolean {
