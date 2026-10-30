@@ -1,8 +1,8 @@
-// Link to the JobPilot Chrome extension, so applications can run in a tab of your everyday Chrome
-// (your profile, your sign-ins) instead of JobPilot's automation-controlled browser.
+// Link to the YouHired Chrome extension, so applications can run in a tab of your everyday Chrome
+// (your profile, your sign-ins) instead of YouHired's automation-controlled browser.
 //
 // The extension long-polls this server for commands and posts results back. Every request carries a
-// pairing code that only you copy from JobPilot's Settings into the extension; anything without it is refused.
+// pairing code that only you copy from YouHired's Settings into the extension; anything without it is refused.
 // The server only listens on localhost.
 
 import crypto from "node:crypto";
@@ -73,7 +73,7 @@ export function deliver(id: string, ok: boolean, value: unknown, error?: string)
 }
 
 export function send<T = unknown>(op: string, args: Record<string, unknown> = {}, timeoutMs = 45_000): Promise<T> {
-  if (!extensionConnected()) return Promise.reject(new Error("The JobPilot Chrome extension isn't connected. Open Chrome, and check the extension is installed and paired (Settings → Your Chrome)."));
+  if (!extensionConnected()) return Promise.reject(new Error("The YouHired Chrome extension isn't connected. Open Chrome, and check the extension is installed and paired (Settings → Your Chrome)."));
   const cmd: Command = { id: crypto.randomUUID(), op, args };
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {

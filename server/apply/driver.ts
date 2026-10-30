@@ -1,5 +1,5 @@
-// What the AI agent needs from a browser, so the same agent can drive either JobPilot's own browser
-// (Playwright) or a tab in your everyday Chrome (through the JobPilot extension).
+// What the AI agent needs from a browser, so the same agent can drive either YouHired's own browser
+// (Playwright) or a tab in your everyday Chrome (through the YouHired extension).
 
 import fs from "node:fs";
 import path from "node:path";

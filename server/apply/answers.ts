@@ -36,7 +36,7 @@ const SCHEMA = {
   required: ["answers", "cover_note"],
 };
 
-/** Everything JobPilot knows about you from your own documents: CV, LinkedIn export, portfolio site. */
+/** Everything YouHired knows about you from your own documents: CV, LinkedIn export, portfolio site. */
 export function knowledge(p: Profile, max = 30000): string {
   return [
     p.cvText ? `<cv>\n${p.cvText}\n</cv>` : "",

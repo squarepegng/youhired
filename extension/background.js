@@ -1,5 +1,5 @@
-// JobPilot extension: asks your local JobPilot app for work and carries it out in tabs of this Chrome.
-// It only ever talks to the JobPilot address you paired, with the pairing code you pasted.
+// YouHired extension: asks your local YouHired app for work and carries it out in tabs of this Chrome.
+// It only ever talks to the YouHired address you paired, with the pairing code you pasted.
 
 const VERSION = chrome.runtime.getManifest().version;
 let running = false;
@@ -18,9 +18,9 @@ async function loop() {
       if (!code) return;
       let res;
       try {
-        res = await fetch(`${server}/api/ext/poll`, { headers: { "x-jobpilot-code": code, "x-jobpilot-version": VERSION } });
+        res = await fetch(`${server}/api/ext/poll`, { headers: { "x-youhired-code": code, "x-youhired-version": VERSION } });
       } catch {
-        await chrome.storage.local.set({ lastError: "Can't reach JobPilot. Is it running?" });
+        await chrome.storage.local.set({ lastError: "Can't reach YouHired. Is it running?" });
         await new Promise((r) => setTimeout(r, 5000));
         continue;
       }
@@ -37,7 +37,7 @@ async function loop() {
       } catch (e) {
         reply = { id: cmd.id, ok: false, error: String((e && e.message) || e) };
       }
-      await fetch(`${server}/api/ext/result`, { method: "POST", headers: { "content-type": "application/json", "x-jobpilot-code": code }, body: JSON.stringify(reply) }).catch(() => {});
+      await fetch(`${server}/api/ext/result`, { method: "POST", headers: { "content-type": "application/json", "x-youhired-code": code }, body: JSON.stringify(reply) }).catch(() => {});
     }
   } finally {
     running = false;
@@ -84,7 +84,7 @@ async function handle(cmd) {
       await inject(a.tabId, a.frameId || 0);
       const [r] = await chrome.scripting.executeScript({
         target,
-        func: (op, args) => window.__jobpilot[op](...args),
+        func: (op, args) => window.__youhired[op](...args),
         args: [a.op, a.args || []],
       });
       if (r && r.result && r.result.__error) throw new Error(r.result.__error);
@@ -114,7 +114,7 @@ chrome.runtime.onMessage.addListener((m) => {
 });
 chrome.runtime.onStartup.addListener(loop);
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.alarms.create("jobpilot-keepalive", { periodInMinutes: 0.5 });
+  chrome.alarms.create("youhired-keepalive", { periodInMinutes: 0.5 });
   loop();
 });
 chrome.alarms.onAlarm.addListener(() => loop());

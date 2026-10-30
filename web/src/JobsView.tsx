@@ -112,7 +112,7 @@ export function JobsView({ view, ctx, steps }: { view: View; ctx: Ctx; steps: St
           const ready = ctx.jobs.filter((j) => j.status === "found" && !j.needsLogin && !j.working && j.eligibility?.verdict !== "ineligible");
           return view === "todo" || view === "inbox" ? (
             ready.length > 0 && (
-              <button className="btn primary" onClick={() => applyIds(ready.map((j) => j.id))} title="JobPilot applies to every eligible job, one after another">
+              <button className="btn primary" onClick={() => applyIds(ready.map((j) => j.id))} title="YouHired applies to every eligible job, one after another">
                 <Zap size={14} /> Apply to all {ready.length}
               </button>
             )
@@ -191,9 +191,9 @@ export function JobsView({ view, ctx, steps }: { view: View; ctx: Ctx; steps: St
                           <span className="c">{j.company}</span>
                         </div>
                         <div className="meta">
-                          {j.flags.includes("hidden-instructions") && <span className="chip danger" title="This posting hides instructions aimed at AI. JobPilot ignored them.">AI trap</span>}
+                          {j.flags.includes("hidden-instructions") && <span className="chip danger" title="This posting hides instructions aimed at AI. YouHired ignored them.">AI trap</span>}
                           {j.needsLogin && <span className="chip warn">Login</span>}
-                          {isBoardOnly(j) && <span className="chip warn" title="Only listed on a job board. JobPilot can't fill this one; you'll get the link.">Apply on site</span>}
+                          {isBoardOnly(j) && <span className="chip warn" title="Only listed on a job board. YouHired can't fill this one; you'll get the link.">Apply on site</span>}
                           {!selected && <EligChip job={j} />}
                           <Fit fit={j.fit} />
                           <span className="date">{relTime(j.statusDate)}</span>
@@ -232,8 +232,8 @@ function Onboarding({ steps, go }: { steps: Step[]; go: (v: View) => void }) {
   const nextIdx = steps.findIndex((s) => !s.done);
   return (
     <div className="onboard">
-      <h1>Welcome to JobPilot</h1>
-      <p>Four steps and JobPilot can start finding remote jobs you're eligible for and filling in the applications. Nothing is submitted without your OK.</p>
+      <h1>Welcome to YouHired</h1>
+      <p>Four steps and YouHired can start finding remote jobs you're eligible for and filling in the applications. Nothing is submitted without your OK.</p>
       {steps.map((s, i) => (
         <div key={s.label} className={`ostep ${s.done ? "done" : ""} ${i === nextIdx ? "next" : ""}`}>
           <span className="num">{s.done ? <CircleCheck size={14} /> : i + 1}</span>
@@ -252,7 +252,7 @@ function Onboarding({ steps, go }: { steps: Step[]; go: (v: View) => void }) {
   );
 }
 
-/** Listed only on a job board (Himalayas, Remote OK, WWR) with no employer form JobPilot can open. */
+/** Listed only on a job board (Himalayas, Remote OK, WWR) with no employer form YouHired can open. */
 export function isBoardOnly(j: Job): boolean {
   try {
     return j.ats === "job-board" || /(^|\.)(himalayas\.app|remoteok\.com|remoteok\.io|weworkremotely\.com|remotive\.com|startup\.jobs|nodesk\.co|jobicy\.com|workingnomads\.com|arbeitnow\.com)$/i.test(new URL(j.applyUrl).hostname);

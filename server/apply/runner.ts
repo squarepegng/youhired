@@ -88,7 +88,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   })();
   const signedIn = connectedHosts().some((h) => host === h || host.endsWith(`.${h}`));
   if (job.needsLogin && !signedIn)
-    return save(job, "do_it_yourself", `${host} needs an account. Connect it under Settings → Connected sites (you sign in once yourself) and JobPilot can apply there. It never creates accounts or types passwords.`);
+    return save(job, "do_it_yourself", `${host} needs an account. Connect it under Settings → Connected sites (you sign in once yourself) and YouHired can apply there. It never creates accounts or types passwords.`);
   if (job.ats === "job-board" || isJobBoardUrl(job.applyUrl)) {
     log(id, `Looking for ${job.company}'s own application form…`);
     const hit = await findEmployerForm(job.company, job.title, job.url).catch(() => null);
@@ -99,7 +99,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
       const own = checkLocation(hit.location, p, "");
       if (own.verdict === "ineligible" && !job.flags.includes("apply-anyway")) {
         job.eligibility = { ...own, reason: `${own.reason} (the employer's own posting; the job board said "${job.location}")` };
-        log(id, `The employer's posting says "${hit.location}". Not open to you, so JobPilot won't apply.`);
+        log(id, `The employer's posting says "${hit.location}". Not open to you, so YouHired won't apply.`);
         return save(job, "skipped", job.eligibility.reason);
       }
       job.applyUrl = hit.applyUrl;
@@ -110,13 +110,13 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   const boardOnly = job.ats === "job-board" || isJobBoardUrl(job.applyUrl) || (job.needsLogin && signedIn);
   if (boardOnly && !llm) {
     const host = new URL(job.applyUrl).hostname.replace(/^www\./, "");
-    return save(job, "do_it_yourself", `This job is listed on ${host}. Connect your AI in Settings so JobPilot can follow "Apply" to the employer's form, or open the link yourself.`);
+    return save(job, "do_it_yourself", `This job is listed on ${host}. Connect your AI in Settings so YouHired can follow "Apply" to the employer's form, or open the link yourself.`);
   }
-  // Employers that ban AI-written answers: JobPilot fills the facts, you write the open answers.
+  // Employers that ban AI-written answers: YouHired fills the facts, you write the open answers.
   let ownWords = job.flags.includes("ai-screening");
 
   // Still open? (Cheap check before opening a browser.)
-  if (!opts.dryRun || process.env.JOBPILOT_CHECK_LIVENESS) {
+  if (!opts.dryRun || process.env.YOUHIRED_CHECK_LIVENESS) {
     const live = await checkLiveness(job);
     log(id, live.open === false ? `Posting closed: ${live.reason}` : `Still open: ${live.reason}`);
     if (live.open === false) return save(job, "skipped", `This posting has closed. ${live.reason}.`);
@@ -136,10 +136,10 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
     }
   }
 
-  // Apply in your everyday Chrome (JobPilot extension) when you've chosen that.
+  // Apply in your everyday Chrome (YouHired extension) when you've chosen that.
   if (store.settings.useMyChrome && llm && !opts.profileOverride) {
     if (extensionConnected()) return applyInMyChrome(job, llm, p, cv, opts, ownWords, boardOnly);
-    log(id, "The JobPilot Chrome extension isn't connected, so this one runs in JobPilot's own browser.");
+    log(id, "The YouHired Chrome extension isn't connected, so this one runs in YouHired's own browser.");
   }
 
   const ctx = await getContext(opts.channel, opts.headless);
@@ -156,7 +156,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   if (screening) {
     job.flags = [...new Set([...job.flags, "ai-screening"])];
     ownWords = true;
-    log(id, `This employer doesn't accept AI-written answers ("${screening.slice(0, 120)}"). JobPilot fills your details; the open answers will be yours.`);
+    log(id, `This employer doesn't accept AI-written answers ("${screening.slice(0, 120)}"). YouHired fills your details; the open answers will be yours.`);
   }
   const hidden = await hiddenText(page);
   const injected = detectInjection(`${text}\n${hidden}`);
@@ -175,7 +175,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
   if (blocker.kind !== "none") {
     log(id, blocker.detail);
     sessions.set(id, { page, mapped: [], values: new Map(), files: { cv } });
-    return save(job, "do_it_yourself", `${blocker.detail} ${opts.headless ? "Open the link to finish it yourself." : "The page is open in the JobPilot browser for you."}`);
+    return save(job, "do_it_yourself", `${blocker.detail} ${opts.headless ? "Open the link to finish it yourself." : "The page is open in the YouHired browser for you."}`);
   }
 
   if (boardOnly && llm) {
@@ -200,7 +200,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
       }
       if (blocker.kind !== "none") {
         sessions.set(id, { page, mapped: [], values: new Map(), files: { cv } });
-        return save(job, "do_it_yourself", `${blocker.detail} ${opts.headless ? "Open the link to finish it yourself." : "The page is open in the JobPilot browser for you."}`);
+        return save(job, "do_it_yourself", `${blocker.detail} ${opts.headless ? "Open the link to finish it yourself." : "The page is open in the YouHired browser for you."}`);
       }
       fields = await readForm(page);
     }
@@ -212,7 +212,7 @@ export async function prepare(jobOrId: string | Job, llm: LLM | null, opts: Appl
       return finishWithAgent(job, page, llm, p, { cv }, opts, ownWords);
     }
     await page.close().catch(() => {});
-    return save(job, "do_it_yourself", "Couldn't find an application form. Connect your AI in Settings so JobPilot can work through custom pages, or open the link yourself.");
+    return save(job, "do_it_yourself", "Couldn't find an application form. Connect your AI in Settings so YouHired can work through custom pages, or open the link yourself.");
   }
   log(id, `Found ${fields.length} fields (${fields.filter((f) => f.required).length} required)`);
 
@@ -364,7 +364,7 @@ async function finishWithAgent(job: Job, page: Page, llm: LLM, p: ReturnType<typ
       return save(job, "do_it_yourself", `${r.reason} Open the link to finish it yourself.`);
     default:
       log(id, `Stopped: ${r.reason}`);
-      return save(job, "error", `JobPilot couldn't finish this form: ${r.reason} Try again, or open the link.`);
+      return save(job, "error", `YouHired couldn't finish this form: ${r.reason} Try again, or open the link.`);
   }
 }
 
@@ -409,7 +409,7 @@ async function driveInChrome(job: Job, d: ExtensionDriver, llm: LLM, p: ReturnTy
       // Your real browser: the check usually passes on its own; if a puzzle shows, you solve it once.
       job.handoff = "captcha";
       await d.focus();
-      log(id, "A human check appeared in your Chrome tab. Tick it there; JobPilot carries on by itself.");
+      log(id, "A human check appeared in your Chrome tab. Tick it there; YouHired carries on by itself.");
       void (async () => {
         const end = Date.now() + 10 * 60_000;
         while (Date.now() < end) {
@@ -423,7 +423,7 @@ async function driveInChrome(job: Job, d: ExtensionDriver, llm: LLM, p: ReturnTy
         }
         log(id, "Still waiting for the human check in your Chrome tab. Press Finish when you're ready.");
       })();
-      return save(job, "filled", "One quick check in your Chrome tab: tick it there and JobPilot finishes by itself.");
+      return save(job, "filled", "One quick check in your Chrome tab: tick it there and YouHired finishes by itself.");
     }
     case "need_user":
       if (r.ownWords) {
@@ -436,7 +436,7 @@ async function driveInChrome(job: Job, d: ExtensionDriver, llm: LLM, p: ReturnTy
     case "blocked":
       return save(job, "do_it_yourself", `${r.reason} The tab is open in your Chrome.`);
     default:
-      return save(job, "error", `JobPilot couldn't finish this form: ${r.reason} The tab is open in your Chrome.`);
+      return save(job, "error", `YouHired couldn't finish this form: ${r.reason} The tab is open in your Chrome.`);
   }
 }
 
@@ -450,8 +450,8 @@ async function submitInMyChrome(job: Job): Promise<Job> {
 }
 
 // ── Human checks (CAPTCHA) ──────────────────────────────────────────────────
-// JobPilot never solves CAPTCHAs. When one appears it keeps the filled form, tells you, and waits:
-// you tick the box in the JobPilot window, it carries on and submits.
+// YouHired never solves CAPTCHAs. When one appears it keeps the filled form, tells you, and waits:
+// you tick the box in the YouHired window, it carries on and submits.
 
 const watching = new Set<string>();
 
@@ -459,8 +459,8 @@ const watching = new Set<string>();
 async function waitForHuman(job: Job, page: Page): Promise<boolean> {
   const id = job.id;
   job.handoff = "captcha";
-  save(job, "filled", "Waiting for you: tick the human check (CAPTCHA) in the JobPilot window. JobPilot carries on by itself.");
-  log(id, "Waiting for you to pass the human check in the JobPilot browser window…");
+  save(job, "filled", "Waiting for you: tick the human check (CAPTCHA) in the YouHired window. YouHired carries on by itself.");
+  log(id, "Waiting for you to pass the human check in the YouHired browser window…");
   await page.bringToFront().catch(() => {});
   const end = Date.now() + 10 * 60_000;
   while (Date.now() < end) {
@@ -478,13 +478,13 @@ async function waitForHuman(job: Job, page: Page): Promise<boolean> {
 
 function handOffCaptcha(job: Job, opts: Pick<ApplyOptions, "headless">): Job {
   job.handoff = "captcha";
-  log(job.id, "A human check (CAPTCHA) appeared. JobPilot never solves those; it needs one tap from you.");
+  log(job.id, "A human check (CAPTCHA) appeared. YouHired never solves those; it needs one tap from you.");
   return save(
     job,
     "filled",
     opts.headless
-      ? "One quick human check (CAPTCHA) left. Press Finish: JobPilot reopens the filled form in a window, you tick the check, it submits."
-      : "One quick human check (CAPTCHA) left. Press Finish and tick it; JobPilot does the rest.",
+      ? "One quick human check (CAPTCHA) left. Press Finish: YouHired reopens the filled form in a window, you tick the check, it submits."
+      : "One quick human check (CAPTCHA) left. Press Finish and tick it; YouHired does the rest.",
   );
 }
 
@@ -509,7 +509,7 @@ async function humanCheck(job: Job, page: Page, opts: Pick<ApplyOptions, "headle
     })();
   }
   job.handoff = "captcha";
-  return save(job, "filled", "Waiting for you: tick the human check (CAPTCHA) in the JobPilot window. JobPilot carries on by itself.");
+  return save(job, "filled", "Waiting for you: tick the human check (CAPTCHA) in the YouHired window. YouHired carries on by itself.");
 }
 
 /** The user pressed Finish on a job that needs a human check. */

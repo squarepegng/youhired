@@ -1,7 +1,7 @@
-// Runs in the job page (injected by the extension only into tabs JobPilot opened). Reads the form and
+// Runs in the job page (injected by the extension only into tabs YouHired opened). Reads the form and
 // performs one action at a time. Built from server/apply/agent-reader.js by scripts/build-extension.mjs.
 (() => {
-  if (window.__jobpilot) return;
+  if (window.__youhired) return;
   const el = (id) => document.querySelector(`[data-jp-a="${id}"]`);
   const need = (id) => {
     const e = el(id);
@@ -21,7 +21,7 @@
   };
   const clickLike = (e) => {
     e.scrollIntoView({ block: "center", inline: "nearest" });
-    // Links that open a new tab: follow them in this tab so JobPilot keeps working here.
+    // Links that open a new tab: follow them in this tab so YouHired keeps working here.
     const a = e.closest && e.closest("a[target=_blank]");
     if (a && a.href && /^https?:/.test(a.href)) {
       location.href = a.href;
@@ -131,7 +131,7 @@
   return { url: location.href, title: document.title, elements: out, text: txt(main).slice(0, 3500), scrollable: document.documentElement.scrollHeight > innerHeight + scrollY + 20 };
 }
 
-  window.__jobpilot = {
+  window.__youhired = {
     snapshot: wrap((offset) => __jpSnapshot(offset || 0)),
     click: wrap((id) => {
       clickLike(need(id));

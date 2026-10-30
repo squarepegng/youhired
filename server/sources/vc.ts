@@ -119,7 +119,7 @@ export async function considerBoard(name: string, boardUrl: string, titles: stri
 export async function speedrun(titles: string[]): Promise<RawJob[]> {
   const out: RawJob[] = [];
   for (const q of titles.slice(0, 4)) {
-    const body = await politeGet(`https://speedrun-talent-network.com/api/v1/jobs?q=${encodeURIComponent(q)}&page=0&source=jobpilot`, 6 * HOUR);
+    const body = await politeGet(`https://speedrun-talent-network.com/api/v1/jobs?q=${encodeURIComponent(q)}&page=0&source=youhired`, 6 * HOUR);
     const data = JSON.parse(body) as { jobs?: { id: string | number; title: string; company?: string | { name?: string }; url: string; location?: string; remote?: boolean; published_at?: string; description?: string }[] };
     for (const j of data.jobs ?? [])
       out.push(mkJob("vc", `speedrun-${j.id}`, { company: typeof j.company === "string" ? j.company : j.company?.name ?? "a16z startup", title: j.title, url: j.url, location: [j.remote ? "Remote" : j.remote === false ? "On-site" : "", j.location ?? ""].filter(Boolean).join(" — "), html: j.description ?? "", postedAt: j.published_at }));

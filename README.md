@@ -1,16 +1,26 @@
-# JobPilot
+# YouHired
 
-JobPilot finds remote jobs you can actually be hired for, writes honest answers from your CV, and fills in the application forms for you in a real browser window. It keeps a tracker of everything it did. It runs on your Mac and uses **your own AI key**: Claude, Gemini, Grok, OpenAI, or any OpenAI-compatible service (OpenRouter, Ollama on your machine).
+**Get hired, on autopilot.**
+
+**Try the demo in your browser:** https://youhired.pages.dev. It uses sample data and needs no install.
+
+YouHired finds remote jobs you can actually be hired for, writes honest answers from your CV, and fills in the application forms for you in a real browser window. It keeps a tracker of everything it did. It runs on your own computer and uses **your own AI key**: Claude, Gemini, Grok, OpenAI, or any OpenAI-compatible service (OpenRouter, Ollama on your machine).
 
 By default it **stops before submitting** so you can check every form.
 
-> "JobPilot" is a working name.
-
 ---
 
-## Start it
+## Get started
 
-You need [Node.js 20+](https://nodejs.org) and Google Chrome (or Microsoft Edge).
+You need [Node.js 20+](https://nodejs.org), [Git](https://git-scm.com), Google Chrome, and an API key from Anthropic, OpenAI, Google Gemini, xAI or OpenRouter.
+
+```bash
+git clone https://github.com/squarepegng/youhired.git
+```
+
+```bash
+cd youhired
+```
 
 ```bash
 npm install
@@ -29,7 +39,7 @@ Then open **http://localhost:5173**. The sidebar has a four-step checklist to ge
 
 ## Getting around
 
-- **Assistant.** A chat where you say what you want and JobPilot does it. Try "I'm a senior product designer, I want fintech roles that hire in Africa. Find them and apply to the best ones." It can:
+- **Assistant.** A chat where you say what you want and YouHired does it. Try "I'm a senior product designer, I want fintech roles that hire in Africa. Find them and apply to the best ones." It can:
   - save your brief, which steers how the AI scores fit
   - change the job titles it searches for
   - run a search
@@ -49,25 +59,25 @@ The app only listens on `localhost`, so nobody else on your network can reach it
 
 ## Apply in your own Chrome (recommended)
 
-JobPilot's own browser is automation-controlled, so sites can tell. reCAPTCHA scores it as a likely bot and can keep showing new puzzles. The **JobPilot Chrome extension** fixes that properly: applications run in a tab of your everyday Chrome, with your profile and sign-ins. Invisible checks usually just pass, and if a puzzle does show, you solve it once in your own tab.
+YouHired's own browser is automation-controlled, so sites can tell. reCAPTCHA scores it as a likely bot and can keep showing new puzzles. The **YouHired Chrome extension** fixes that properly: applications run in a tab of your everyday Chrome, with your profile and sign-ins. Invisible checks usually just pass, and if a puzzle does show, you solve it once in your own tab.
 
 Set up (once):
 
 1. In Chrome, open `chrome://extensions` and turn on **Developer mode** (top right).
-2. Click **Load unpacked** and choose the `extension` folder inside JobPilot.
-3. In JobPilot, go to **Settings → Your Chrome** and copy the pairing code.
-4. Click the JobPilot icon in Chrome's toolbar (pin it from the puzzle-piece menu), paste the code, and press **Connect**.
+2. Click **Load unpacked** and choose the `extension` folder inside YouHired.
+3. In YouHired, go to **Settings → Your Chrome** and copy the pairing code.
+4. Click the YouHired icon in Chrome's toolbar (pin it from the puzzle-piece menu), paste the code, and press **Connect**.
 5. Turn on **Apply in my Chrome** in **Settings → Your Chrome**.
 
 How it works:
-- **Who does what.** The app still finds jobs, writes answers and tailors your CV. The extension only carries out the agent's steps (read the page, click, type, choose, upload) in tabs JobPilot opens.
-- **Privacy.** It only talks to JobPilot on this Mac, using the pairing code. It never reads your other tabs.
+- **Who does what.** The app still finds jobs, writes answers and tailors your CV. The extension only carries out the agent's steps (read the page, click, type, choose, upload) in tabs YouHired opens.
+- **Privacy.** It only talks to YouHired on this Mac, using the pairing code. It never reads your other tabs.
 - **Same rules.** Facts from your profile, no invented answers, no passwords or accounts, and job boards' robots.txt rules.
-- **No extension connected?** JobPilot falls back to its own browser.
+- **No extension connected?** YouHired falls back to its own browser.
 
 ## How a search works
 
-1. JobPilot pulls postings from public job sources that allow it:
+1. YouHired pulls postings from public job sources that allow it:
    - Greenhouse, Lever and Ashby company boards
    - Himalayas
    - Remote OK
@@ -87,16 +97,16 @@ Each scored job costs one AI call. "Score at most" in Search sets the limit per 
 
 ## Applying for you
 
-JobPilot's goal is to apply for you. You choose how:
+YouHired's goal is to apply for you. You choose how:
 
 - **Pick jobs.** Tick them in any list and press **Apply**.
 - **Apply to everything that fits.** Press **Apply to all** in To apply, or tell the Assistant "apply to every eligible job above 70".
-- **Autopilot.** Turn it on in Settings. JobPilot submits each application itself, and only marks it **Applied** when the employer's confirmation page appears. That's also when the employer emails you their usual "we received your application". With Autopilot off, every form waits for you to press **Submit**.
-- **Work in the background.** Also in Settings. JobPilot does all of this with no browser window. Some sites show "verify you're human" checks to hidden browsers; those jobs come back to you.
+- **Autopilot.** Turn it on in Settings. YouHired submits each application itself, and only marks it **Applied** when the employer's confirmation page appears. That's also when the employer emails you their usual "we received your application". With Autopilot off, every form waits for you to press **Submit**.
+- **Work in the background.** Also in Settings. YouHired does all of this with no browser window. Some sites show "verify you're human" checks to hidden browsers; those jobs come back to you.
 
-How JobPilot gets to the form:
+How YouHired gets to the form:
 
-1. **Company boards** (Greenhouse, Lever, Ashby, Recruitee, Workable): JobPilot opens the employer's form directly.
+1. **Company boards** (Greenhouse, Lever, Ashby, Recruitee, Workable): YouHired opens the employer's form directly.
 2. **Job-board listings** (Himalayas, We Work Remotely, Remote OK): it looks up the same role on the employer's own board through their public APIs. It applies there, after re-checking eligibility against the employer's own wording.
 3. **Anything else:** the **AI browser agent** takes over. It reads the page (and a screenshot, if your model supports images), clicks "Apply", follows the link to the employer's site, and works through custom or multi-step forms one step at a time.
 
@@ -114,7 +124,7 @@ What still comes to you, in the Inbox or Do it yourself:
 
 ## How applying works
 
-When you press **Apply**, JobPilot works through these steps:
+When you press **Apply**, YouHired works through these steps:
 
 1. **Opens the form.** It opens the application in its own browser window. That window has a separate profile, so it never sees your everyday browser, passwords or cookies.
 2. **Checks for blockers.** Login walls, CAPTCHAs, and pages that say they reject AI-assisted applications all go to **Do it yourself**, with the link.
@@ -129,11 +139,11 @@ When you press **Apply**, JobPilot works through these steps:
    - equal-opportunity questions (default: decline to self-identify)
 5. **Asks your AI to write the rest, grounded only in your CV.** That means free-text answers ("Why us?", "Tell us about a project") and a short cover note.
    - Answers are checked for numbers that aren't in your CV, and for code words planted in the posting. A failed answer is rewritten once. If it still fails, it goes to you.
-   - Questions the CV can't answer (e.g. "Have you used a crypto wallet?") go to **Needs your answer**. JobPilot never guesses.
+   - Questions the CV can't answer (e.g. "Have you used a crypto wallet?") go to **Needs your answer**. YouHired never guesses.
 6. **Types like a person.** Real keystrokes (React forms ignore pasted values), type-then-pick for location dropdowns, and the CV is uploaded.
 7. **Re-reads the form.** Required fields that are still empty get one more attempt.
 8. **Stops for your review.** The window stays open, and the tracker shows what was filled with a screenshot. Press **Submit now**, or submit in the window yourself and press **I applied myself**.
-   - With auto-submit on (Settings), JobPilot submits on its own when nothing looks odd. If the page shows errors it fixes them and tries again; some forms need a second click after a dropdown closes.
+   - With auto-submit on (Settings), YouHired submits on its own when nothing looks odd. If the page shows errors it fixes them and tries again; some forms need a second click after a dropdown closes.
    - It only marks a job **Applied** after it sees the confirmation page.
 
 When you answer a "Needs your answer" question, the answer is saved to your profile. It's reused automatically the next time any form asks the same thing.
@@ -148,8 +158,8 @@ These are built in. There is no setting to turn them off.
 - **Job pages are untrusted.** Posting text is passed to the AI wrapped as data, with instructions to ignore anything aimed at it. Hidden text and "if you are an AI, include the word X" tricks are detected, flagged on the job, and checked for in every answer.
 - **AI screening is respected.** A page saying it rejects AI-assisted applications goes to **Do it yourself**. Some Canonical forms ask you to agree to "use only my own words".
 - **Never-apply list** is checked before every search and every application.
-- **Polite to job sites.** JobPilot identifies itself, follows robots.txt, waits between requests to the same site, and caches results for hours.
-  - Remotive's robots.txt currently disallows its API, so that source is off and JobPilot won't fetch it even if you switch it on.
+- **Polite to job sites.** YouHired identifies itself, follows robots.txt, waits between requests to the same site, and caches results for hours.
+  - Remotive's robots.txt currently disallows its API, so that source is off and YouHired won't fetch it even if you switch it on.
   - Remote OK and Himalayas ask for a link back. Every job links to its original posting.
 
 ## Your data
@@ -160,7 +170,7 @@ Everything lives in `data/`, which is git-ignored:
 |---|---|
 | `data/store.json` | settings (including your API key), profile, search settings, tracker. Only your macOS user can read it. |
 | `data/cv/` | your CV file |
-| `data/browser-profile/` | the separate browser profile JobPilot uses |
+| `data/browser-profile/` | the separate browser profile YouHired uses |
 | `data/screens/` | screenshots of filled forms |
 | `data/cache/` | cached job-board responses |
 
@@ -262,12 +272,12 @@ Some sources and ideas were learned from **[career-ops](https://github.com/caree
 - finding newly funded companies from funding news
 - the "still open?" check, per-job tailored CVs with a fact check, and the story bank
 
-JobPilot's code for these is its own. career-ops deliberately never submits an application; JobPilot does, within the guardrails above.
+YouHired's code for these is its own. career-ops deliberately never submits an application; YouHired does, within the guardrails above.
 
 ## Known limits
 
 - **Supported forms.** Built and tested against Greenhouse forms. Lever, Ashby, Workable and Recruitee use the same generic reader and filler, but each site has quirks. Watch the first few runs and use **Fill again** if something was missed.
 - **Login-only systems** (Workday, iCIMS, Taleo, LinkedIn Easy Apply) always go to **Do it yourself**.
 - **Background mode.** Settings → "Work in the background" fills forms with no window; you review the screenshot and answers in the app, then press Submit.
-- **Bundled browser.** Playwright's bundled Chromium doesn't run on macOS 13, so JobPilot drives your installed Chrome by default. It uses a separate profile, so your normal browsing data is untouched.
+- **Bundled browser.** Playwright's bundled Chromium doesn't run on macOS 13, so YouHired drives your installed Chrome by default. It uses a separate profile, so your normal browsing data is untouched.
 - **Fit scores are a guide.** They come from your AI. Check the "why" line.

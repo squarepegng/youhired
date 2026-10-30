@@ -225,7 +225,7 @@ app.post("/api/jobs/:id/apply-anyway", (req, res) => {
     const job = s.jobs[id];
     job.flags = [...new Set([...job.flags, "apply-anyway"])];
     job.status = "found";
-    job.statusReason = "You chose to apply anyway. JobPilot answers location and work-authorisation questions truthfully.";
+    job.statusReason = "You chose to apply anyway. YouHired answers location and work-authorisation questions truthfully.";
     job.statusDate = new Date().toISOString();
   });
   const block = applyBlocker();
@@ -306,16 +306,16 @@ app.post("/api/sites/disconnect", (req, res) => {
   res.json({ connected: load().settings.connectedSites });
 });
 
-// ── JobPilot Chrome extension (applies in your everyday Chrome) ──
+// ── YouHired Chrome extension (applies in your everyday Chrome) ──
 app.get("/api/extension", (_req, res) => res.json({ ...extensionStatus(), code: pairingCode(), server: `http://localhost:${PORT}`, folder: path.resolve("extension") }));
 app.get("/api/ext/poll", wrap(async (req, res) => {
-  if (!authorised(req.get("x-jobpilot-code"))) return void res.status(401).json({ error: "Not paired" });
-  const cmd = await poll(String(req.get("x-jobpilot-version") ?? ""));
+  if (!authorised(req.get("x-youhired-code"))) return void res.status(401).json({ error: "Not paired" });
+  const cmd = await poll(String(req.get("x-youhired-version") ?? ""));
   if (!cmd) return void res.status(204).end();
   res.json(cmd);
 }));
 app.post("/api/ext/result", (req, res) => {
-  if (!authorised(req.get("x-jobpilot-code"))) return void res.status(401).json({ error: "Not paired" });
+  if (!authorised(req.get("x-youhired-code"))) return void res.status(401).json({ error: "Not paired" });
   const b = req.body as { id: string; ok: boolean; value?: unknown; error?: string };
   deliver(b.id, b.ok, b.value, b.error);
   res.json({ ok: true });
@@ -346,7 +346,7 @@ app.get("/api/jobs/:id/screenshot", (req, res) => {
 
 app.get("/api/export.csv", (_req, res) => {
   res.setHeader("content-type", "text/csv; charset=utf-8");
-  res.setHeader("content-disposition", `attachment; filename="jobpilot-tracker-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.setHeader("content-disposition", `attachment; filename="youhired-tracker-${new Date().toISOString().slice(0, 10)}.csv"`);
   res.send(toCsv(Object.values(load().jobs)));
 });
 
@@ -356,7 +356,7 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 async function start() {
-  // Keep the Chrome extension's page reader in sync with JobPilot's own.
+  // Keep the Chrome extension's page reader in sync with YouHired's own.
   const { buildExtension } = (await import(path.resolve("scripts/build-extension.mjs"))) as { buildExtension: () => string };
   buildExtension();
   if (process.env.NODE_ENV === "production" && fs.existsSync("dist/index.html")) {
@@ -369,7 +369,7 @@ async function start() {
   }
   // Localhost only: nobody else on your network can reach it.
   app.listen(PORT, "127.0.0.1", () => {
-    console.log(`\n  JobPilot is running → http://localhost:${PORT}\n`);
+    console.log(`\n  YouHired is running → http://localhost:${PORT}\n`);
   });
 }
 

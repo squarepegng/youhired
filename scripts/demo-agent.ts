@@ -9,7 +9,7 @@ const url = args.find((a) => /^https?:/.test(a));
 if (!url) throw new Error("Pass a job URL");
 const headless = args.includes("--headless");
 const appSettings = JSON.parse(fs.readFileSync("data/store.json", "utf8")).settings;
-process.env.JOBPILOT_DATA_DIR = path.resolve("data/demo");
+process.env.YOUHIRED_DATA_DIR = path.resolve("data/demo");
 
 const { defaultProfile } = await import("../server/store.js");
 const { prepare, logs, shotPath } = await import("../server/apply/runner.js");

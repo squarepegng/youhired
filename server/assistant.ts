@@ -75,11 +75,11 @@ const SCHEMA = {
   required: ["thought", "calls", "done", "reply"],
 };
 
-const SYSTEM = `You are JobPilot's assistant: a sharp, proactive job-search agent working for one candidate.
+const SYSTEM = `You are YouHired's assistant: a sharp, proactive job-search agent working for one candidate.
 You find remote jobs they can legally be hired for, judge fit, and get applications done. You have tools; use them.
 
 TOOLS (call several per round; results come back next round):
-- list_jobs(status?, query?, min_fit?, limit?): jobs in the tracker with status, fit, eligibility, whether JobPilot can apply automatically.
+- list_jobs(status?, query?, min_fit?, limit?): jobs in the tracker with status, fit, eligibility, whether YouHired can apply automatically.
 - get_job(job_ids): full details for up to 3 jobs: where they hire (exact wording), why it fits, pay, the posting text.
 - search_jobs(titles?, brief?): run a fresh search across all job sources NOW and wait for results (1-3 minutes). Optionally update titles/brief first. Returns the new jobs.
 - discover_startups(limit): check up to \`limit\` (default 150) Y Combinator startups that are hiring and remote-friendly and haven't been checked yet; boards with roles like the candidate's are added to sources. Follow with search_jobs to pull their jobs.
@@ -87,7 +87,7 @@ TOOLS (call several per round; results come back next round):
 - add_companies(companies): add verified boards to future searches.
 - set_brief(brief): save what the candidate wants (seniority, field, industries, likes/dislikes). Fit scoring uses it.
 - update_search(titles, exclude_keywords): change which titles searches match. Titles are short ("product designer"); a posting matches if its title contains every word.
-- apply_jobs(job_ids): JobPilot applies itself (queued, one at a time): it opens the employer's form, fills it from the profile and CV, answers questions, uploads the CV. Use for jobs with status found/error/filled and auto_apply=yes, including job-board listings. With review on, each waits for the candidate to press Submit; with auto-submit on it sends them. Never tell the user to apply manually. If a job needs one human step, say exactly which: a CAPTCHA (status filled, handoff captcha: they press Finish and tick the check, JobPilot submits), answers in their own words for employers that ban AI (status needs_answer: they type the answers, JobPilot submits), or a site to connect under Settings → Connected sites.
+- apply_jobs(job_ids): YouHired applies itself (queued, one at a time): it opens the employer's form, fills it from the profile and CV, answers questions, uploads the CV. Use for jobs with status found/error/filled and auto_apply=yes, including job-board listings. With review on, each waits for the candidate to press Submit; with auto-submit on it sends them. Never tell the user to apply manually. If a job needs one human step, say exactly which: a CAPTCHA (status filled, handoff captcha: they press Finish and tick the check, YouHired submits), answers in their own words for employers that ban AI (status needs_answer: they type the answers, YouHired submits), or a site to connect under Settings → Connected sites.
 - skip_jobs(job_ids, reason), open_job(job_ids).
 - Skipped jobs limited to other countries can be applied to only if the user explicitly asks for that specific job ("apply anyway"); point them to the Apply anyway button on the job. Explain that most such employers reject candidates outside their listed countries.
 
@@ -111,7 +111,7 @@ const note = (s: string) => {
   if (activity.steps.length > 40) activity.steps.shift();
 };
 
-/** Login-only sites are out. Job-board listings are tried: JobPilot finds the employer's form or follows Apply. */
+/** Login-only sites are out. Job-board listings are tried: YouHired finds the employer's form or follows Apply. */
 function autoApply(j: Job): boolean {
   return !j.needsLogin;
 }
@@ -125,7 +125,7 @@ function jobLine(j: Job): string {
     `company=${j.company}`,
     `fit=${j.fit ?? "?"}`,
     `eligibility=${j.eligibility?.verdict ?? "?"} ("${(j.eligibility?.evidence || j.location || "").slice(0, 70)}")`,
-    `auto_apply=${!autoApply(j) ? "no (login-only site)" : viaBoard(j) ? "yes (job-board listing: JobPilot finds the employer's form or follows Apply; some boards turn out to need an account)" : "yes"}`,
+    `auto_apply=${!autoApply(j) ? "no (login-only site)" : viaBoard(j) ? "yes (job-board listing: YouHired finds the employer's form or follows Apply; some boards turn out to need an account)" : "yes"}`,
     `source=${j.source}`,
     j.statusReason ? `note=${j.statusReason.slice(0, 110)}` : "",
     j.handoff ? `needs_human=${j.handoff === "captcha" ? "one CAPTCHA tick (press Finish)" : "answers in their own words"}` : "",
@@ -350,7 +350,7 @@ async function runTool(c: Call, llm: LLM, actions: ChatAction[]): Promise<string
       return `Skipped ${ids.length}.`;
     }
     case "open_job":
-      actions.push({ type: "open_job", summary: "Open in JobPilot", status: ids.length ? "done" : "failed", data: { job_ids: ids.slice(0, 3) } });
+      actions.push({ type: "open_job", summary: "Open in YouHired", status: ids.length ? "done" : "failed", data: { job_ids: ids.slice(0, 3) } });
       return "Shown to the candidate.";
   }
   return "Unknown tool.";

@@ -6,7 +6,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { DATA_DIR } from "../store.js";
 
-export const USER_AGENT = "JobPilot/0.1 (personal job search tool; runs locally for one person)";
+export const USER_AGENT = "YouHired/0.1 (personal job search tool; runs locally for one person)";
 const MIN_GAP_MS = 1500;
 const lastHit = new Map<string, number>();
 const robotsCache = new Map<string, { rules: { allow: boolean; path: string }[] }>();
@@ -29,7 +29,7 @@ function parseRobots(txt: string): { allow: boolean; path: string }[] {
         applies = false;
         sawRuleInGroup = false;
       }
-      if (val === "*" || /jobpilot/i.test(val)) applies = true;
+      if (val === "*" || /youhired/i.test(val)) applies = true;
     } else if (key === "allow" || key === "disallow") {
       sawRuleInGroup = true;
       if (applies && val) rules.push({ allow: key === "allow", path: val });

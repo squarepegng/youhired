@@ -1,6 +1,6 @@
-// Connected sites: job platforms that need an account. You sign in yourself, once, in JobPilot's own
+// Connected sites: job platforms that need an account. You sign in yourself, once, in YouHired's own
 // browser window. The session is kept in data/browser-profile, so the agent can apply there later
-// without ever seeing or typing your password. JobPilot never creates accounts.
+// without ever seeing or typing your password. YouHired never creates accounts.
 
 import { closeBrowser, getContext } from "./apply/browser.js";
 import { currentApply } from "./apply/queue.js";
@@ -27,7 +27,7 @@ export function connectedHosts(): string[] {
 
 /** Open a visible window at the site's sign-in page. The user signs in themselves. */
 export async function openSignIn(id: string, customUrl?: string): Promise<void> {
-  if (currentApply()) throw new Error("JobPilot is applying right now. Try again when it's done.");
+  if (currentApply()) throw new Error("YouHired is applying right now. Try again when it's done.");
   const site = SITES.find((s) => s.id === id);
   const url = site?.loginUrl ?? customUrl;
   if (!url || !/^https:\/\//.test(url)) throw new Error("Pick a site, or give a full https:// link to its sign-in page.");

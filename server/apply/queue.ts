@@ -24,7 +24,7 @@ export function queued(): string[] {
   return [...queue];
 }
 
-/** Checks that must pass before JobPilot opens any application. Returns a reason, or null if OK. */
+/** Checks that must pass before YouHired opens any application. Returns a reason, or null if OK. */
 export function applyBlocker(): string | null {
   const { profile } = load();
   if (!profile.cvFileName || !fs.existsSync(path.join(DATA_DIR, "cv", profile.cvFileName))) return "Upload your CV in Profile first.";

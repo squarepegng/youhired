@@ -1,5 +1,5 @@
 // Builds extension/content.js from extension/content.src.js and the shared page reader
-// (server/apply/agent-reader.js), so the extension reads pages exactly like JobPilot's own browser.
+// (server/apply/agent-reader.js), so the extension reads pages exactly like YouHired's own browser.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

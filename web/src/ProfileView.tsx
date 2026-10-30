@@ -25,7 +25,7 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Autosave. Any edit means the facts need confirming again.
-  // Only the facts JobPilot states on forms need re-confirming when they change.
+  // Only the facts YouHired states on forms need re-confirming when they change.
   const FACTS: (keyof Profile)[] = ["legalName", "email", "phone", "country", "city", "workAuth", "needsSponsorship", "openToContractor", "salary", "currentCompensation", "noticePeriod", "eeo", "neverApply"];
   const set = (patch: Partial<Profile>) => {
     const factChanged = Object.keys(patch).some((k) => FACTS.includes(k as keyof Profile));
@@ -53,7 +53,7 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
     const saved = await api<Profile>("/api/profile", { ...p, confirmed: true });
     setP(saved);
     await ctx.refresh();
-    toast("Facts confirmed. JobPilot will only use them as written.");
+    toast("Facts confirmed. YouHired will only use them as written.");
   };
 
   const [reading, setReading] = useState(false);
@@ -152,14 +152,14 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
       <div className="content">
         <div className="page">
           <h1>Your profile</h1>
-          <p className="lede">Your CV tells JobPilot what you've done. The facts here (where you live, where you can work, salary) are only ever used exactly as you write them.</p>
+          <p className="lede">Your CV tells YouHired what you've done. The facts here (where you live, where you can work, salary) are only ever used exactly as you write them.</p>
 
           {p.confirmed ? (
             <div className="banner ok">
               <CircleCheck size={16} color="var(--green)" />
               <div className="grow">
                 <b>Facts confirmed</b>
-                <span>JobPilot can fill applications. Editing anything will ask you to confirm again.</span>
+                <span>YouHired can fill applications. Editing anything will ask you to confirm again.</span>
               </div>
             </div>
           ) : (
@@ -196,7 +196,7 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
               </label>
 
               <div className="group-title">More about you</div>
-              <p className="group-desc">The more JobPilot knows, the more questions it answers by itself. Everything stays on this Mac.</p>
+              <p className="group-desc">The more YouHired knows, the more questions it answers by itself. Everything stays on this Mac.</p>
               <div className="box">
                 <div className="srow">
                   <div className="l">
@@ -213,7 +213,7 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
                 <div className="srow">
                   <div className="l">
                     <b>Portfolio site</b>
-                    <span>{p.portfolioText ? `Read (${Math.round(p.portfolioText.length / 1000)}k characters from ${p.links.portfolio || p.links.website}).` : p.links.portfolio || p.links.website ? `JobPilot reads ${p.links.portfolio || p.links.website} so it knows your projects.` : "Add your portfolio link under Links & EEO first."}</span>
+                    <span>{p.portfolioText ? `Read (${Math.round(p.portfolioText.length / 1000)}k characters from ${p.links.portfolio || p.links.website}).` : p.links.portfolio || p.links.website ? `YouHired reads ${p.links.portfolio || p.links.website} so it knows your projects.` : "Add your portfolio link under Links & EEO first."}</span>
                   </div>
                   <div className="r">
                     <button className="btn" disabled={!(p.links.portfolio || p.links.website) || reading} onClick={readSite}>
@@ -253,7 +253,7 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
                   {building ? <LoaderCircle size={12} className="spin" /> : <FileText size={12} />} {p.stories?.length ? "Rebuild from my documents" : "Build from my documents"}
                 </button>
               </div>
-              <p className="group-desc">Your strongest career stories. JobPilot uses them for "tell us about a time…" questions, so answers sound like you. Edit or remove any.</p>
+              <p className="group-desc">Your strongest career stories. YouHired uses them for "tell us about a time…" questions, so answers sound like you. Edit or remove any.</p>
               {(p.stories ?? []).length > 0 ? (
                 <div className="box">
                   {p.stories!.map((st, i) => (
@@ -426,7 +426,7 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
                 <div className="srow">
                   <div className="l">
                     <b>Current or most recent compensation</b>
-                    <span>For "current CTC" / "current salary" questions. Only you know this; enter it once and JobPilot fills it everywhere.</span>
+                    <span>For "current CTC" / "current salary" questions. Only you know this; enter it once and YouHired fills it everywhere.</span>
                   </div>
                   <div className="r">
                     <input value={p.currentCompensation ?? ""} onChange={(e) => set({ currentCompensation: e.target.value })} placeholder="e.g. ₦18,000,000 per year" />
@@ -464,7 +464,7 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
                 ))}
               </div>
               <div className="group-title">Equal-opportunity questions</div>
-              <p className="group-desc">By default JobPilot declines to self-identify, using the form's own wording. Change any you'd rather answer.</p>
+              <p className="group-desc">By default YouHired declines to self-identify, using the form's own wording. Change any you'd rather answer.</p>
               <div className="box">
                 {(["gender", "race", "veteran", "disability"] as const).map((k) => (
                   <div className="srow" key={k}>
@@ -483,7 +483,7 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
           {tab === "answers" &&
             (p.savedAnswers.length ? (
               <>
-                <p className="group-desc">Answers you've given to questions JobPilot couldn't answer. Reused whenever a form asks the same thing.</p>
+                <p className="group-desc">Answers you've given to questions YouHired couldn't answer. Reused whenever a form asks the same thing.</p>
                 <div className="box">
                   {p.savedAnswers.map((a, i) => (
                     <div className="srow stack" key={i}>

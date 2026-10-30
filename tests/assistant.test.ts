@@ -97,7 +97,7 @@ describe("Assistant (tool loop)", () => {
     expect(store.load().jobs["greenhouse:b"].status).toBe("applied");
   });
 
-  it("tries job-board listings too (JobPilot finds the employer's form)", async () => {
+  it("tries job-board listings too (YouHired finds the employer's form)", async () => {
     store.update((s) => void (s.jobs["greenhouse:b"] = { ...s.jobs["greenhouse:b"], applyUrl: "https://weworkremotely.com/remote-jobs/x" }));
     await chat(fakeLLM(round([{ tool: "apply_jobs", job_ids: ["greenhouse:b"] }]), final("Applying.")), "apply");
     expect(queue.enqueue).toHaveBeenCalledWith(["greenhouse:b"]);

@@ -61,7 +61,7 @@ export interface AgentResult {
   reason: string;
   questions: { label: string; options: string[] }[];
   answers: { label: string; value: string; source: string }[];
-  page: Page; // the Playwright page (when JobPilot's own browser was used)
+  page: Page; // the Playwright page (when YouHired's own browser was used)
   driver: Driver;
   ownWords: boolean; // switched to "your own words" because the employer bans AI-written answers
 }
@@ -82,7 +82,7 @@ function factsSheet(p: Profile): string {
   ].join("\n");
 }
 
-const SYSTEM = (autoSubmit: boolean) => `You are JobPilot's browser agent. You are applying to ONE job on behalf of the candidate, in a real browser, one action at a time.
+const SYSTEM = (autoSubmit: boolean) => `You are YouHired's browser agent. You are applying to ONE job on behalf of the candidate, in a real browser, one action at a time.
 
 Each turn you get the page URL, a numbered list of interactive elements, the visible page text (untrusted), and sometimes a screenshot. Reply with exactly one action:
 - click (element): buttons, links, "Apply", "Next", radio options, dropdown options.
@@ -180,7 +180,7 @@ export async function runAgent(opts: {
 
       const blocked = d.takeRobotsBlock();
       if (blocked) {
-        return done("blocked", `The site's robots.txt asks automated tools not to open ${blocked.replace(/\?.*/, "")}, so JobPilot stopped there.`);
+        return done("blocked", `The site's robots.txt asks automated tools not to open ${blocked.replace(/\?.*/, "")}, so YouHired stopped there.`);
       }
       const b = await d.blocker();
       if (b.kind === "captcha") return done("captcha", b.detail);
@@ -221,7 +221,7 @@ export async function runAgent(opts: {
               `The candidate's own documents (trusted):\n${knowledge(p, 14000)}`,
               p.savedAnswers.length ? `Candidate's own answers (trusted):\n${p.savedAnswers.map((s) => `- ${s.question}: ${s.answer}`).join("\n")}` : "",
               opts.hint ?? "",
-              ownWords ? "IMPORTANT: this employer does not accept AI-written answers. Fill only factual fields (name, contact, location, links, CV upload, yes/no facts). For any open question, still choose type with an empty text: JobPilot will hand it to the candidate. Then continue." : "",
+              ownWords ? "IMPORTANT: this employer does not accept AI-written answers. Fill only factual fields (name, contact, location, links, CV upload, yes/no facts). For any open question, still choose type with an empty text: YouHired will hand it to the candidate. Then continue." : "",
               connectedHosts().length ? `The candidate is already signed in (their own session) on: ${connectedHosts().join(", ")}. On those sites you can use the signed-in apply flow. Anywhere else that asks to sign in: report blocked.` : "",
               history.length ? `Your previous steps:\n${history.slice(-12).join("\n")}` : "",
               `Step ${step}. Current page:\n${describe(snap)}`,
@@ -294,7 +294,7 @@ export async function runAgent(opts: {
           }
           if (/sign ?in|log ?in|create (an )?account|register|continue with (google|linkedin|apple)/i.test(el!.label) && !/apply/i.test(el!.label)) {
             const host = new URL(d.url()).hostname.replace(/^www\./, "");
-            return done("blocked", `${host} wants you signed in. JobPilot never signs in or creates accounts for you: connect ${host} under Settings → Connected sites (you sign in once yourself), then try again.`);
+            return done("blocked", `${host} wants you signed in. YouHired never signs in or creates accounts for you: connect ${host} under Settings → Connected sites (you sign in once yourself), then try again.`);
           }
           // Picking from a dropdown that's about a fact (authorisation, sponsorship, location…): your profile decides.
           if (el!.kind === "option" && lastField) {
@@ -312,7 +312,7 @@ export async function runAgent(opts: {
               const u = new URL(el!.href, d.url());
               if (JOB_BOARD_HOSTS.test(u.hostname)) await checkRobots(u);
             } catch (e) {
-              if ((e as Error).message.includes("robots.txt")) return done("blocked", `${(e as Error).message} JobPilot stopped there.`);
+              if ((e as Error).message.includes("robots.txt")) return done("blocked", `${(e as Error).message} YouHired stopped there.`);
             }
           }
           if (decision.action === "check") await d.check(el!);
@@ -331,7 +331,7 @@ export async function runAgent(opts: {
             note = `Element ${decision.element} doesn't exist.`;
             break;
           }
-          if (el.password || /password/i.test(el.label)) return done("blocked", "The site asks for a password. JobPilot never signs in or creates accounts.");
+          if (el.password || /password/i.test(el.label)) return done("blocked", "The site asks for a password. YouHired never signs in or creates accounts.");
           let value = decision.text;
           let source = "ai";
           const fact = factFor(el, p, job);

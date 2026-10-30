@@ -1,4 +1,4 @@
-import { ArrowUp, Building2, ChevronRight, Check, CircleAlert, LoaderCircle, Radar, Sparkles, SquarePen, X, FileText, SkipForward, Eye, SlidersHorizontal, Send } from "lucide-react";
+import { BotMessageSquare, ArrowUp, Building2, ChevronRight, Check, CircleAlert, LoaderCircle, Radar, SquarePen, X, FileText, SkipForward, Eye, SlidersHorizontal, Send } from "lucide-react";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "./api";
 import type { Ctx } from "./App";
@@ -93,7 +93,7 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
     <>
       <div className="topbar">
         <div className="title">
-          <Sparkles size={15} /> Assistant
+          <BotMessageSquare size={15} /> Assistant
         </div>
         <div className="spacer" />
         {msgs.length > 0 && (
@@ -107,7 +107,7 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
           {msgs.length === 0 && !thinking ? (
             <div className="chathero">
               <div className="orb">
-                <Sparkles size={20} />
+                <BotMessageSquare size={22} />
               </div>
               <h1>What kind of job are you after?</h1>
               <p>Tell me in your own words. I'll set up the search, find roles you can be hired for, and fill in the applications. Every form waits for your OK before it's sent.</p>
@@ -125,7 +125,7 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
               <div key={m.id} className={`msg ${m.role}`}>
                 {m.role === "assistant" && (
                   <div className="av">
-                    <Sparkles size={13} />
+                    <Check size={13} strokeWidth={3} />
                   </div>
                 )}
                 <div className="body">
@@ -141,7 +141,7 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
           {thinking && (
             <div className="msg assistant">
               <div className="av">
-                <Sparkles size={13} />
+                <Check size={13} strokeWidth={3} />
               </div>
               <div className="body">
                 <div className="livesteps">

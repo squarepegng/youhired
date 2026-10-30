@@ -17,9 +17,9 @@ interface Progress {
 const SOURCE_INFO: Record<SourceId, string> = {
   vc: "Job boards that Sequoia, Lightspeed, Kleiner Perkins, GV, Bessemer, First Round, Insight Partners, Atomico and other investors run for their whole portfolio, plus a16z's speedrun network. Funded startups only.",
   funded: "Reads funding news (TechCrunch, PR Newswire), finds the job boards of companies that just raised, and adds the ones with roles like yours.",
-  fourdayweek: "Off: 4 Day Week's robots.txt asks tools not to use its API, so JobPilot won't fetch it.",
+  fourdayweek: "Off: 4 Day Week's robots.txt asks tools not to use its API, so YouHired won't fetch it.",
   nodesk: "Remote-only job board feed.",
-  jobspresso: "Off: Jobspresso's robots.txt asks tools not to read its feed, so JobPilot won't fetch it.",
+  jobspresso: "Off: Jobspresso's robots.txt asks tools not to read its feed, so YouHired won't fetch it.",
   startupjobs: "Newest remote startup jobs for your titles.",
   yc: "Finds Y Combinator startups that are hiring and remote-friendly (newest batches first), checks their job boards, and adds the ones with roles like yours.",
   hn: "The monthly Hacker News \"Who is hiring?\" thread: hundreds of startups, many linking straight to their application form.",
@@ -32,7 +32,7 @@ const SOURCE_INFO: Record<SourceId, string> = {
   himalayas: "Remote-only job board. Each job links back to Himalayas, as its terms ask.",
   remoteok: "Remote-only job board. Each job links back to Remote OK, as its terms ask.",
   wwr: "We Work Remotely RSS feed for your field.",
-  remotive: "Off: Remotive's robots.txt asks tools not to use its API, so JobPilot won't fetch it.",
+  remotive: "Off: Remotive's robots.txt asks tools not to use its API, so YouHired won't fetch it.",
 };
 
 export function SearchView({ ctx }: { ctx: Ctx }) {
@@ -205,7 +205,7 @@ export function SearchView({ ctx }: { ctx: Ctx }) {
           </div>
 
           <div className="group-title">Sources</div>
-          <p className="group-desc">Only public APIs and feeds. JobPilot follows each site's robots.txt and waits between requests.</p>
+          <p className="group-desc">Only public APIs and feeds. YouHired follows each site's robots.txt and waits between requests.</p>
           <div className="box">
             {(Object.keys(ctx.state.sources) as SourceId[]).map((id) => (
               <div key={id}>

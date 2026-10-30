@@ -192,7 +192,7 @@ function mapByRules(f: FormField, p: Profile, job: Pick<Job, "location" | "salar
   }
 
   // Passwords are never filled, whatever the field is called ("Portfolio password" included).
-  if (/password|passcode|\bpin\b/.test(l)) return f.required ? { field: f, value: null, source: "user", need: "user", note: "JobPilot never enters passwords" } : { field: f, value: null, source: "rule", note: "Password field left empty" };
+  if (/password|passcode|\bpin\b/.test(l)) return f.required ? { field: f, value: null, source: "user", need: "user", note: "YouHired never enters passwords" } : { field: f, value: null, source: "rule", note: "Password field left empty" };
 
   // Answers the user already gave to this exact question before
 
@@ -268,7 +268,7 @@ function mapByRules(f: FormField, p: Profile, job: Pick<Job, "location" | "salar
       if (ok === true) return ret(yesNo(f, false), "rule", "Authorised there, no sponsorship needed");
       if (ok === false) return ret(yesNo(f, p.needsSponsorship), "rule", "Not authorised there");
     }
-    return { field: f, value: null, source: "user", need: "user", note: "Sponsorship question without a clear country. Answer once and JobPilot will reuse it." };
+    return { field: f, value: null, source: "user", need: "user", note: "Sponsorship question without a clear country. Answer once and YouHired will reuse it." };
   }
   if (/authori[sz]ed to work|legally (?:allowed|able|eligible|permitted) to work|right to work|eligible to work|work permit|work authori[sz]ation/.test(l)) {
     const c = questionCountry(f.label, job);
@@ -276,7 +276,7 @@ function mapByRules(f: FormField, p: Profile, job: Pick<Job, "location" | "salar
       const ok = authorisedIn(p, c);
       if (ok !== null) return ret(yesNo(f, ok), "rule", ok ? "You're authorised there" : "You're not authorised there");
     }
-    return { field: f, value: null, source: "user", need: "user", note: "Work-authorisation question without a clear country. Answer once and JobPilot will reuse it." };
+    return { field: f, value: null, source: "user", need: "user", note: "Work-authorisation question without a clear country. Answer once and YouHired will reuse it." };
   }
   if (/relocat/.test(l)) return { field: f, value: null, source: "user", need: "user" };
 
@@ -284,7 +284,7 @@ function mapByRules(f: FormField, p: Profile, job: Pick<Job, "location" | "salar
   // Current / most recent pay ("CTC") is a fact only you know: from your profile, never guessed.
   if (/\bctc\b|current (?:salary|compensation|pay|package|ctc)|most recent (?:salary|compensation|pay|ctc)|present (?:salary|ctc)|last drawn/.test(l)) {
     if (p.currentCompensation) return ret(f.options.length ? pickOption(f.options, [p.currentCompensation]) : p.currentCompensation, "profile");
-    return { field: f, value: null, source: "user", need: "user", note: "Add your current pay under Profile → Salary once, and JobPilot fills it everywhere" };
+    return { field: f, value: null, source: "user", need: "user", note: "Add your current pay under Profile → Salary once, and YouHired fills it everywhere" };
   }
   if (!/review|read|aware|understand|acknowledge/.test(l) && /salary|compensation|pay expectation|expected (?:pay|rate)|desired (?:pay|rate)|rate expectation|hourly rate/.test(l)) return salaryValue(f, p, job);
   if (/notice period|when can you start|start date|earliest (?:start|availability)|available to start/.test(l)) return ret(p.noticePeriod || null);

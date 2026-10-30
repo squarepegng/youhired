@@ -70,7 +70,7 @@ export function SettingsView({ ctx }: { ctx: Ctx }) {
       <div className="content">
         <div className="page">
           <h1>Settings</h1>
-          <p className="lede">JobPilot runs on your own AI account. Your key stays on this Mac in a file only you can read. It's never logged or sent anywhere except to the provider you pick.</p>
+          <p className="lede">YouHired runs on your own AI account. Your key stays on this Mac in a file only you can read. It's never logged or sent anywhere except to the provider you pick.</p>
 
           <div className="group-title">AI provider</div>
           <div className="providers">
@@ -164,28 +164,28 @@ export function SettingsView({ ctx }: { ctx: Ctx }) {
             <div className="srow">
               <div className="l">
                 <b>Autopilot: submit applications for me</b>
-                <span>On: JobPilot fills each form and submits it, then marks it Applied once the confirmation page shows (the employer usually emails you too). Off: it fills each form and waits for you to press Submit. Either way, questions it can't answer truthfully come to your Inbox.</span>
+                <span>On: YouHired fills each form and submits it, then marks it Applied once the confirmation page shows (the employer usually emails you too). Off: it fills each form and waits for you to press Submit. Either way, questions it can't answer truthfully come to your Inbox.</span>
               </div>
               <Switch label="Autopilot" checked={s.autoSubmit} onChange={(v) => save({ autoSubmit: v })} />
             </div>
             <div className="srow">
               <div className="l">
                 <b>Tailor my CV for each job</b>
-                <span>JobPilot rewrites your CV around each role's needs, using only facts from your documents, and checks every employer, title and number before using it. If anything fails the check, your original CV is sent instead.</span>
+                <span>YouHired rewrites your CV around each role's needs, using only facts from your documents, and checks every employer, title and number before using it. If anything fails the check, your original CV is sent instead.</span>
               </div>
               <Switch label="Tailor CV" checked={s.tailorCv !== false} onChange={(v) => save({ tailorCv: v })} />
             </div>
             <div className="srow">
               <div className="l">
                 <b>Work in the background</b>
-                <span>On: no browser window pops up. JobPilot fills forms out of sight and you review them from the screenshot here, then press Submit. Off: you watch it fill each form in a Chrome window.</span>
+                <span>On: no browser window pops up. YouHired fills forms out of sight and you review them from the screenshot here, then press Submit. Off: you watch it fill each form in a Chrome window.</span>
               </div>
               <Switch label="Work in the background" checked={!!s.background} onChange={(v) => save({ background: v })} />
             </div>
             <div className="srow">
               <div className="l">
                 <b>Browser</b>
-                <span>JobPilot opens its own window with a separate profile. It never sees your everyday browser, passwords or cookies.</span>
+                <span>YouHired opens its own window with a separate profile. It never sees your everyday browser, passwords or cookies.</span>
               </div>
               <div className="r">
                 <select value={s.browserChannel} onChange={(e) => save({ browserChannel: e.target.value as Settings["browserChannel"] })}>
@@ -204,7 +204,7 @@ export function SettingsView({ ctx }: { ctx: Ctx }) {
             {[
               "Never states a false location, work authorisation or experience.",
               "Questions it can't answer from your profile go to your Inbox. It never guesses.",
-              "Never creates accounts, types passwords or solves CAPTCHAs. You sign in to sites yourself (Connected sites); JobPilot only reuses that session.",
+              "Never creates accounts, types passwords or solves CAPTCHAs. You sign in to sites yourself (Connected sites); YouHired only reuses that session.",
               "Job pages are untrusted. Hidden instructions to AI are ignored; pages that reject AI-assisted applications are left to you.",
               "Companies on your never-apply list are always skipped.",
             ].map((r) => (
@@ -251,14 +251,14 @@ function ConnectedSites() {
     setOpened(null);
     setCustom("");
     await load();
-    toast("Connected. JobPilot can now apply there using your session.");
+    toast("Connected. YouHired can now apply there using your session.");
   };
   const isOn = (host: string) => connected.find((c) => c.host === host);
   return (
     <>
       <div className="group-title">Connected sites</div>
       <p className="group-desc">
-        Some job platforms need an account to apply. Sign in once yourself in JobPilot's browser window; JobPilot keeps that session on this Mac and applies there for you. It never sees your password and never creates accounts. Automated applying may go against a site's terms, so connect only sites you're comfortable with.
+        Some job platforms need an account to apply. Sign in once yourself in YouHired's browser window; YouHired keeps that session on this Mac and applies there for you. It never sees your password and never creates accounts. Automated applying may go against a site's terms, so connect only sites you're comfortable with.
       </p>
       <div className="box">
         {sites.map((s) => {
@@ -338,7 +338,7 @@ function YourChrome({ autoOn, onToggle }: { autoOn: boolean; onToggle: (v: boole
     <>
       <div className="group-title">Your Chrome</div>
       <p className="group-desc">
-        Apply in your everyday Chrome instead of JobPilot's own browser. Sites see your normal browser, so invisible human checks usually just pass, and if a puzzle does show, you solve it once in your own tab. Needs the small JobPilot extension (one-time setup).
+        Apply in your everyday Chrome instead of YouHired's own browser. Sites see your normal browser, so invisible human checks usually just pass, and if a puzzle does show, you solve it once in your own tab. Needs the small YouHired extension (one-time setup).
       </p>
       <div className="box">
         <div className="srow">
@@ -366,13 +366,13 @@ function YourChrome({ autoOn, onToggle }: { autoOn: boolean; onToggle: (v: boole
               In Chrome, open <code>chrome://extensions</code> and turn on <b>Developer mode</b> (top right).
             </li>
             <li>
-              Click <b>Load unpacked</b> and choose the <code>extension</code> folder inside JobPilot:{" "}
+              Click <b>Load unpacked</b> and choose the <code>extension</code> folder inside YouHired:{" "}
               <button className="link" onClick={() => st && copy(st.folder)}>
                 copy the folder path
               </button>
               .
             </li>
-            <li>Click the JobPilot icon in Chrome's toolbar (pin it from the puzzle-piece menu), paste this code, and press Connect.</li>
+            <li>Click the YouHired icon in Chrome's toolbar (pin it from the puzzle-piece menu), paste this code, and press Connect.</li>
           </ol>
           <div style={{ display: "flex", gap: 8 }}>
             <input readOnly value={st?.code ?? "…"} style={{ fontFamily: "ui-monospace, Menlo, monospace" }} />
@@ -381,7 +381,7 @@ function YourChrome({ autoOn, onToggle }: { autoOn: boolean; onToggle: (v: boole
             </button>
           </div>
           <span className="faint" style={{ fontSize: 12 }}>
-            The extension only talks to JobPilot on this Mac ({st?.server ?? "localhost"}), only acts in tabs JobPilot opens, and never reads your other tabs.
+            The extension only talks to YouHired on this Mac ({st?.server ?? "localhost"}), only acts in tabs YouHired opens, and never reads your other tabs.
           </span>
         </div>
       </div>

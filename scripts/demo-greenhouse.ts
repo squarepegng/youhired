@@ -11,7 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-process.env.JOBPILOT_DATA_DIR = path.resolve("data/demo");
+process.env.YOUHIRED_DATA_DIR = path.resolve("data/demo");
 const args = process.argv.slice(2);
 const headless = args.includes("--headless");
 const board = args[args.indexOf("--board") + 1] && args.includes("--board") ? args[args.indexOf("--board") + 1] : "canonical";
@@ -98,13 +98,13 @@ function envLLM() {
     [process.env.XAI_API_KEY, "xai", "grok-4.7"],
   ];
   const hit = pick.find(([k]) => k);
-  return hit ? makeLLM({ provider: hit[1], apiKey: hit[0]!, model: process.env.JOBPILOT_MODEL || hit[2] }) : null;
+  return hit ? makeLLM({ provider: hit[1], apiKey: hit[0]!, model: process.env.YOUHIRED_MODEL || hit[2] }) : null;
 }
 
 const llm = envLLM();
 console.log(llm ? `Answering free-text questions with ${llm.provider}/${llm.model}` : "No API key in env: filling profile fields only.");
 
-// Try eligible postings (remote, open to Nigeria) until one has a form JobPilot may fill.
+// Try eligible postings (remote, open to Nigeria) until one has a form YouHired may fill.
 // Postings whose page says it rejects AI-assisted applications are skipped, as the real app does.
 const boards = args.includes("--board") ? [board] : [board, "automatticcareers", "grafanalabs", "wikimedia", "elastic", "gitlab"];
 type Prepared = Awaited<ReturnType<typeof prepare>>;

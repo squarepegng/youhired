@@ -1,7 +1,7 @@
-import { Briefcase, CircleCheck, Command, Inbox, Radar, Search, Settings as Cog, SkipForward, Hand, User, Check, Sparkles } from "lucide-react";
+import { Briefcase, CircleCheck, Command, Inbox, Radar, Search, Settings as Cog, SkipForward, Hand, User, Check, BotMessageSquare } from "lucide-react";
 import { AssistantView } from "./AssistantView";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "./api";
+import { DEMO, api } from "./api";
 import { JobsView } from "./JobsView";
 import { Palette } from "./Palette";
 import { ProfileView } from "./ProfileView";
@@ -64,7 +64,7 @@ function Shell() {
       if (!msg) continue;
       toast(msg, j.status === "applied" || j.status === "filled" ? "ok" : "error");
       try {
-        if ("Notification" in window && Notification.permission === "granted" && document.hidden) new Notification("JobPilot", { body: msg });
+        if ("Notification" in window && Notification.permission === "granted" && document.hidden) new Notification("YouHired", { body: msg });
       } catch {
         /* notifications unavailable */
       }
@@ -138,7 +138,7 @@ function Shell() {
           <span className="mark">
             <Check size={13} strokeWidth={3} />
           </span>
-          JobPilot
+          YouHired
         </div>
         <button className="searchbtn" onClick={() => setPalette(true)}>
           <Search size={14} />
@@ -147,7 +147,7 @@ function Shell() {
           <kbd>K</kbd>
         </button>
 
-        {nav("assistant", "Assistant", Sparkles)}
+        {nav("assistant", "Assistant", BotMessageSquare)}
         {nav("inbox", "Inbox", Inbox, inboxCount ? <span className="badge">{inboxCount}</span> : null)}
         {nav("find", "Find jobs", Radar)}
 
@@ -185,6 +185,16 @@ function Shell() {
       </aside>
 
       <main className="main">
+        {DEMO && (
+          <div className="demobar">
+            <span>
+              <b>Demo</b> · sample data, nothing is sent anywhere. Try the Assistant, open a job, press Fill application.
+            </span>
+            <a className="btn primary sm" href="https://github.com/squarepegng/youhired#get-started" target="_blank" rel="noreferrer">
+              Get YouHired
+            </a>
+          </div>
+        )}
         {view in JOB_VIEWS && <JobsView key={view} view={view} ctx={ctx} steps={steps} />}
         {view === "assistant" && <AssistantView ctx={ctx} />}
         {view === "find" && <SearchView ctx={ctx} />}

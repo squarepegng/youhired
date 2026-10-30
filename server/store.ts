@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Profile, SearchPrefs, Settings, Store, Job } from "./types.js";
 
-export const DATA_DIR = process.env.JOBPILOT_DATA_DIR || path.resolve("data");
+export const DATA_DIR = process.env.YOUHIRED_DATA_DIR || process.env.JOBPILOT_DATA_DIR || path.resolve("data");
 const FILE = () => path.join(DATA_DIR, "store.json");
 
 export function defaultProfile(): Profile {

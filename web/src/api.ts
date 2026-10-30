@@ -1,4 +1,8 @@
+export const DEMO = import.meta.env.VITE_DEMO === "1";
+
 export async function api<T = unknown>(path: string, body?: unknown, method?: string): Promise<T> {
+  // Public demo: everything runs in the browser on sample data.
+  if (DEMO) return (await import("./demo")).demoApi<T>(path, body, method);
   const isForm = body instanceof FormData;
   const res = await fetch(path, {
     method: method ?? (body === undefined ? "GET" : "POST"),

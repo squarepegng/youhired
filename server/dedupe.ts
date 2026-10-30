@@ -25,7 +25,7 @@ function sameTitle(a: string, b: string): boolean {
 
 const cleanUrl = (u: string) => u.replace(/[?#].*$/, "").replace(/\/(apply|application|c\/new)\/?$/, "").replace(/\/$/, "").toLowerCase();
 
-/** An application you've already made for this role (by JobPilot or marked "I applied myself"). */
+/** An application you've already made for this role (by YouHired or marked "I applied myself"). */
 export function alreadyApplied(job: Pick<Job, "id" | "company" | "title" | "applyUrl" | "url">, all: Job[]): Job | undefined {
   const c = normalizeCompany(job.company);
   const urls = new Set([cleanUrl(job.applyUrl), cleanUrl(job.url)]);
@@ -38,5 +38,5 @@ export function alreadyApplied(job: Pick<Job, "id" | "company" | "title" | "appl
 }
 
 export function appliedReason(o: Job): string {
-  return `Already applied to this role on ${new Date(o.statusDate).toLocaleDateString(undefined, { day: "numeric", month: "short" })} (${o.title} at ${o.company}). JobPilot never applies twice.`;
+  return `Already applied to this role on ${new Date(o.statusDate).toLocaleDateString(undefined, { day: "numeric", month: "short" })} (${o.title} at ${o.company}). YouHired never applies twice.`;
 }

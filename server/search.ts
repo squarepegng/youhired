@@ -119,10 +119,10 @@ export function triage(raw: RawJob, prefs: SearchPrefs, p: Profile, now = Date.n
   const screening = detectAiScreening(raw.description);
   if (screening) {
     flags.push("ai-screening");
-    // Still applied to: JobPilot fills your details and you write the open answers yourself.
+    // Still applied to: YouHired fills your details and you write the open answers yourself.
     return { keep: true, status: "found", reason: `This employer wants answers in your own words: "${screening.slice(0, 160)}"`, eligibility, flags };
   }
-  if (raw.needsLogin) return { keep: true, status: "do_it_yourself", reason: "This site needs an account to apply. JobPilot never creates accounts or signs in.", eligibility, flags };
+  if (raw.needsLogin) return { keep: true, status: "do_it_yourself", reason: "This site needs an account to apply. YouHired never creates accounts or signs in.", eligibility, flags };
   return { keep: true, status: "found", eligibility, flags };
 }
 
@@ -220,7 +220,7 @@ export async function runSearch(llm: LLM | null): Promise<void> {
     }
     say(`${toScore.length} jobs passed the filters.`);
 
-    // Job-board listings: find the employer's own Greenhouse/Lever/Ashby form so JobPilot can apply there.
+    // Job-board listings: find the employer's own Greenhouse/Lever/Ashby form so YouHired can apply there.
     // Also re-check earlier job-board jobs (including ones previously left for you to do yourself).
     const waiting = Object.values(load().jobs).filter((j) => (j.status === "found" || (j.status === "do_it_yourself" && !j.needsLogin && !j.flags.includes("ai-screening"))) && isJobBoardUrl(j.applyUrl) && !toScore.includes(j));
     const boardJobs = [...toScore.filter((j) => isJobBoardUrl(j.applyUrl)), ...waiting].slice(0, 30);

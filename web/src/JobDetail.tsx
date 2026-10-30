@@ -1,4 +1,4 @@
-import { ArrowUpRight, Bot, Building2, ChevronRight, CircleAlert, Clock, Globe, Hand, LoaderCircle, MapPin, Play, Send, ShieldCheck, Sparkles, Undo2, User, X } from "lucide-react";
+import { Target, FileCheck2, ArrowUpRight, Bot, Building2, ChevronRight, CircleAlert, Clock, Globe, Hand, LoaderCircle, MapPin, Play, Send, ShieldCheck, Undo2, User, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import type { Ctx } from "./App";
@@ -65,7 +65,7 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
     run(async () => {
       await api(`/api/jobs/${id}/submit`, {});
       setBusy(true);
-    }, "Submitting… JobPilot fixes anything the form asks for and confirms when it's sent.");
+    }, "Submitting… YouHired fixes anything the form asks for and confirms when it's sent.");
   const applyAnyway = () =>
     run(async () => {
       await api(`/api/jobs/${id}/apply-anyway`, {});
@@ -75,7 +75,7 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
     run(async () => {
       const r = await api<{ mode: string }>(`/api/jobs/${id}/finish`, {});
       setBusy(r.mode === "reopen");
-    }, "A JobPilot window is opening with your filled form. Tick the check there; JobPilot submits the rest.");
+    }, "A YouHired window is opening with your filled form. Tick the check there; YouHired submits the rest.");
   const setStatus = (status: Job["status"], reason: string, ok: string) => run(() => api(`/api/jobs/${id}/status`, { status, reason }), ok);
   const saveAnswers = () =>
     run(async () => {
@@ -122,7 +122,7 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
             <span className="muted">{job.eligibility?.reason}</span>
           </dd>
           <dt>
-            <Sparkles size={13} /> Fit
+            <Target size={13} /> Fit
           </dt>
           <dd>
             <Fit fit={job.fit} />
@@ -156,16 +156,16 @@ export function JobDetail({ job, ctx }: { job: Job; ctx: Ctx }) {
           {job.flags.includes("hidden-instructions") && (
             <div className="callout red">
               <ShieldCheck size={14} />
-              <span>This posting hides instructions aimed at AI tools (like asking for a code word). JobPilot ignored them and checks that none of its answers contain them.</span>
+              <span>This posting hides instructions aimed at AI tools (like asking for a code word). YouHired ignored them and checks that none of its answers contain them.</span>
             </div>
           )}
         </div>
 
         {job.tailoredCv && (
           <div className="callout green">
-            <Sparkles size={14} />
+            <FileCheck2 size={14} />
             <span>
-              JobPilot sent a CV tailored to this role: same facts, re-ordered and re-emphasised for it.{" "}
+              YouHired sent a CV tailored to this role: same facts, re-ordered and re-emphasised for it.{" "}
               <a href={`/api/jobs/${id}/cv`} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
                 View the tailored CV ↗
               </a>
@@ -293,7 +293,7 @@ function NextStep(p: {
           <ShieldCheck size={15} /> One quick check left
         </div>
         <p>
-          Everything is filled in. The site wants a human to tick a check (a CAPTCHA), which JobPilot never fakes. Press <b>Finish</b>: a JobPilot window shows the filled form, you tick the check, and JobPilot submits. If the check keeps coming back there (some sites keep challenging automated windows), use <b>Finish in my browser</b>: your answers and files are ready to copy.
+          Everything is filled in. The site wants a human to tick a check (a CAPTCHA), which YouHired never fakes. Press <b>Finish</b>: a YouHired window shows the filled form, you tick the check, and YouHired submits. If the check keeps coming back there (some sites keep challenging automated windows), use <b>Finish in my browser</b>: your answers and files are ready to copy.
         </p>
         <div className="actions">
           <button className="btn primary" onClick={p.finish}>
@@ -314,7 +314,7 @@ function NextStep(p: {
         <div className="h">
           <LoaderCircle size={15} className="spin" /> {job.status === "filled" ? "Submitting…" : "Working on the application…"}
         </div>
-        <p>{p.background ? "Filling the form in the background." : "Filling the form in the JobPilot browser window."} Watch the activity below. It stops before submitting unless auto-submit is on.</p>
+        <p>{p.background ? "Filling the form in the background." : "Filling the form in the YouHired browser window."} Watch the activity below. It stops before submitting unless auto-submit is on.</p>
       </div>
     );
 
@@ -325,7 +325,7 @@ function NextStep(p: {
           <div className="h">
             <Play size={14} /> Ready when you are
           </div>
-          <p>JobPilot opens the form in its own browser window, fills it from your profile and CV, and stops so you can check it before anything is sent.</p>
+          <p>YouHired opens the form in its own browser window, fills it from your profile and CV, and stops so you can check it before anything is sent.</p>
           <div className="actions">
             <button className="btn primary" onClick={p.apply}>
               Fill application
@@ -346,7 +346,7 @@ function NextStep(p: {
               ? job.handoff === "own_words"
                 ? "Your details are filled. Your AI drafted these from your CV, LinkedIn and portfolio. This employer says it disqualifies AI-written answers, so read them and make them yours before approving."
                 : "Your details are filled. Your AI drafted these from your CV, LinkedIn and portfolio. Check them and approve."
-              : "JobPilot never guesses facts only you know. Answer once: it's saved to your profile and reused on every future form."}
+              : "YouHired never guesses facts only you know. Answer once: it's saved to your profile and reused on every future form."}
           </p>
           {(job.pending ?? []).map((q) => (
             <div className="question" key={q.fieldId}>
@@ -386,7 +386,7 @@ function NextStep(p: {
             {job.hasSession
               ? p.background
                 ? "Filled in the background. Check the answers and screenshot below, then submit."
-                : "The filled form is open in the JobPilot browser window. Change anything you like there, then submit."
+                : "The filled form is open in the YouHired browser window. Change anything you like there, then submit."
               : "The browser window for this form was closed. Fill it again to review and submit."}
             {(job.pending?.length ?? 0) > 0 && ` Still empty: ${job.pending!.map((x) => x.label).join("; ")}.`}
           </p>
@@ -444,10 +444,10 @@ function NextStep(p: {
             <StatusIcon status="skipped" /> Skipped
           </div>
           <p>{job.statusReason}</p>
-          {job.eligibility?.verdict === "ineligible" && <p className="small">Apply anyway if you think they might make an exception (some hire contractors outside their listed countries). JobPilot still answers location and work-authorisation questions truthfully.</p>}
+          {job.eligibility?.verdict === "ineligible" && <p className="small">Apply anyway if you think they might make an exception (some hire contractors outside their listed countries). YouHired still answers location and work-authorisation questions truthfully.</p>}
           <div className="actions">
             {job.eligibility?.verdict === "ineligible" && (
-              <button className="btn primary" onClick={p.applyAnyway} title="JobPilot applies with truthful answers about where you can work; the employer decides">
+              <button className="btn primary" onClick={p.applyAnyway} title="YouHired applies with truthful answers about where you can work; the employer decides">
                 Apply anyway
               </button>
             )}

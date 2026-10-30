@@ -1,4 +1,4 @@
-import { Sparkles, Briefcase, CircleCheck, Download, Hand, Inbox, Radar, Search, Settings, SkipForward, User, Command } from "lucide-react";
+import { BotMessageSquare, Briefcase, CircleCheck, Download, Hand, Inbox, Radar, Search, Settings, SkipForward, User, Command } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Ctx, View } from "./App";
 import { StatusIcon } from "./ui";
@@ -20,7 +20,7 @@ export function Palette({ ctx, onClose, onPickJob }: { ctx: Ctx; onClose: () => 
   const items = useMemo<Item[]>(() => {
     const go = (v: View) => () => ctx.go(v);
     const nav: Item[] = [
-      { id: "assistant", label: "Ask the Assistant", sub: "Tell it what you want", icon: <Sparkles size={15} />, group: "Navigate", run: go("assistant") },
+      { id: "assistant", label: "Ask the Assistant", sub: "Tell it what you want", icon: <BotMessageSquare size={15} />, group: "Navigate", run: go("assistant") },
       { id: "inbox", label: "Go to Inbox", icon: <Inbox size={15} />, group: "Navigate", run: go("inbox") },
       { id: "find", label: "Find jobs", sub: "Search public job boards", icon: <Radar size={15} />, group: "Navigate", run: go("find") },
       { id: "todo", label: "Go to To apply", icon: <Briefcase size={15} />, group: "Navigate", run: go("todo") },

@@ -12,7 +12,7 @@ export interface Settings {
   background: boolean; // run the browser hidden (headless); review via screenshots in the app
   connectedSites: { id: string; name: string; host: string; connectedAt: string }[]; // sites you signed in to yourself
   tailorCv: boolean; // send a CV tailored to each job (fact-checked); off = always your original file
-  useMyChrome: boolean; // apply in your everyday Chrome through the JobPilot extension
+  useMyChrome: boolean; // apply in your everyday Chrome through the YouHired extension
   extensionCode: string; // pairing code the extension sends with every request
 }
 
@@ -45,7 +45,7 @@ export interface Story {
 }
 
 export interface Profile {
-  // Facts the user must confirm. JobPilot never guesses these.
+  // Facts the user must confirm. YouHired never guesses these.
   legalName: string;
   preferredName: string;
   email: string;
@@ -69,7 +69,7 @@ export interface Profile {
   skills: string[];
   experience: Experience[];
   education: { school: string; degree: string; year?: string }[];
-  // Answers the user gave to questions JobPilot couldn't answer. Reused next time.
+  // Answers the user gave to questions YouHired couldn't answer. Reused next time.
   savedAnswers: { question: string; answer: string }[];
   cvFileName: string;
   cvText: string;
@@ -151,7 +151,7 @@ export interface Job {
   answers?: { label: string; value: string; source: string }[];
   pending?: PendingQuestion[];
   coverNote?: string;
-  handoff?: "captcha" | "own_words"; // the one thing JobPilot needs a human for on this job
+  handoff?: "captcha" | "own_words"; // the one thing YouHired needs a human for on this job
 }
 
 export interface ChatAction {

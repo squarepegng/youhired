@@ -5,7 +5,7 @@ async function refresh() {
   if (code) $("code").value = code;
   const on = lastOk && Date.now() - lastOk < 40000;
   $("dot").className = "dot" + (on ? " on" : "");
-  $("msg").textContent = on ? "Connected to JobPilot" : lastError || (code ? "Connecting…" : "Not connected");
+  $("msg").textContent = on ? "Connected to YouHired" : lastError || (code ? "Connecting…" : "Not connected");
 }
 $("save").onclick = async () => {
   await chrome.storage.local.set({ server: $("server").value.trim().replace(/\/$/, ""), code: $("code").value.trim(), lastError: "" });

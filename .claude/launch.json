@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "jobpilot",
+      "name": "youhired",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "start"
@@ -10,14 +10,14 @@
       "port": 5173
     },
     {
-      "name": "jobpilot-dev",
+      "name": "youhired-dev",
       "runtimeExecutable": "npx",
       "runtimeArgs": [
         "tsx",
         "server/index.ts"
       ],
       "env": {
-        "JOBPILOT_DATA_DIR": "data/dev",
+        "YOUHIRED_DATA_DIR": "data/dev",
         "PORT": "5174"
       },
       "port": 5174
