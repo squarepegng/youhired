@@ -483,3 +483,18 @@ textarea { resize: vertical; line-height: 1.5; }
 }
 .demolink { color: var(--violet); font-weight: 500; font-size: 12.5px; white-space: nowrap; }
 .demolink:hover { color: #d6c8ff; text-decoration: underline; }
+
+/* Sources: quiet lists with room to breathe (overrides the tile grid above) */
+.srcgroups { gap: 36px; padding-top: 6px; }
+.srcgroup-head { gap: 10px; }
+.srcgroup-head b { font-size: 14px; font-weight: 600; }
+.srcgroup .group-desc { margin: 4px 0 14px; }
+.tiles { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); overflow: hidden; }
+.tile { border: 0; border-radius: 0; background: none; padding: 16px 18px; gap: 24px; border-bottom: 1px solid var(--line); }
+.tile:last-child { border-bottom: 0; }
+.tile:hover { background: var(--hover); border-color: var(--line); }
+.tile b { font-size: 13px; margin-bottom: 3px; }
+.tile span { font-size: 12.5px; white-space: normal; }
+.disclose { margin-top: 12px; }
+.boards { margin-top: 12px; padding: 16px; gap: 16px; }
+.page.find .hintline { margin-top: 4px; }

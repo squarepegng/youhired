@@ -1,4 +1,4 @@
-import { ArrowRight, Briefcase, Building2, ChevronDown, Globe, Link2, LoaderCircle, Plus, Radar, Rocket, SlidersHorizontal } from "lucide-react";
+import { ArrowRight, Briefcase, ChevronDown, Link2, LoaderCircle, Plus, Radar, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { Ctx } from "./App";
@@ -38,10 +38,10 @@ const SOURCE_INFO: Record<SourceId, string> = {
   jobspresso: "Its robots.txt asks tools not to read the feed",
 };
 
-const GROUPS: { title: string; icon: typeof Rocket; ids: SourceId[]; desc: string }[] = [
-  { title: "Startups & investors", icon: Rocket, ids: ["yc", "vc", "funded", "hn"], desc: "Freshly funded companies, the ones most likely to be hiring." },
-  { title: "Remote job boards", icon: Globe, ids: ["himalayas", "remoteok", "wwr", "startupjobs", "jobicy", "workingnomads", "arbeitnow", "nodesk"], desc: "Listings are matched to the employer's own form when possible." },
-  { title: "Company boards", icon: Building2, ids: ["greenhouse", "lever", "ashby"], desc: "Specific companies you want to watch." },
+const GROUPS: { title: string; ids: SourceId[]; desc: string }[] = [
+  { title: "Startups & investors", ids: ["yc", "vc", "funded", "hn"], desc: "Freshly funded companies, the ones most likely to be hiring." },
+  { title: "Remote job boards", ids: ["himalayas", "remoteok", "wwr", "startupjobs", "jobicy", "workingnomads", "arbeitnow", "nodesk"], desc: "Listings are matched to the employer's own form when possible." },
+  { title: "Company boards", ids: ["greenhouse", "lever", "ashby"], desc: "Specific companies you want to watch." },
 ];
 const BLOCKED: SourceId[] = ["remotive", "fourdayweek", "jobspresso"];
 
@@ -236,7 +236,6 @@ export function SearchView({ ctx }: { ctx: Ctx }) {
               {GROUPS.map((g) => (
                 <section key={g.title} className="srcgroup">
                   <div className="srcgroup-head">
-                    <g.icon size={14} />
                     <b>{g.title}</b>
                     <span className="faint">
                       {g.ids.filter((s) => p.sources[s]).length}/{g.ids.length} on
@@ -245,7 +244,7 @@ export function SearchView({ ctx }: { ctx: Ctx }) {
                   <p className="group-desc">{g.desc}</p>
                   <div className="tiles">
                     {g.ids.map((id) => (
-                      <label key={id} className={`tile ${p.sources[id] ? "on" : ""}`}>
+                      <label key={id} className="tile">
                         <div>
                           <b>{ctx.state.sources[id]?.replace(/\s*\(.*\)$/, "")}</b>
                           <span>{SOURCE_INFO[id]}</span>
