@@ -135,9 +135,7 @@ function Shell() {
     <div className="app">
       <aside className="sidebar">
         <div className="workspace">
-          <span className="mark">
-            <Check size={13} strokeWidth={3} />
-          </span>
+          <img className="mark" src={`${import.meta.env.BASE_URL}mascot.png`} alt="" />
           YouHired
         </div>
         <button className="searchbtn" onClick={() => setPalette(true)}>

@@ -46,7 +46,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1
 .app { display: grid; grid-template-columns: 244px 1fr; height: 100vh; }
 .sidebar { display: flex; flex-direction: column; padding: 10px 8px; gap: 2px; min-height: 0; }
 .workspace { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-weight: 600; color: var(--text); font-size: 13.5px; }
-.mark { width: 20px; height: 20px; border-radius: 6px; background: linear-gradient(135deg, #8b8aff, #5e6ad2); display: grid; place-items: center; color: white; }
+.mark { width: 24px; height: auto; flex: none; object-fit: contain; }
 .workspace .spacer { flex: 1; }
 .searchbtn { display: flex; align-items: center; gap: 8px; margin: 6px 0 10px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor: pointer; text-align: left; }
 .searchbtn:hover { border-color: var(--line-2); color: var(--text-2); }
