@@ -1,4 +1,4 @@
-import { Briefcase, CircleCheck, Command, Inbox, Radar, Search, Settings as Cog, SkipForward, Hand, User, Check, BotMessageSquare } from "lucide-react";
+import { Briefcase, CircleCheck, Command, Inbox, Radar, Search, Settings as Cog, SkipForward, Hand, User, Check } from "lucide-react";
 import { AssistantView } from "./AssistantView";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DEMO, api } from "./api";
@@ -8,7 +8,7 @@ import { ProfileView } from "./ProfileView";
 import { SearchView } from "./SearchView";
 import { SettingsView } from "./SettingsView";
 import type { AppState, Job, JobStatus } from "./types";
-import { ToastProvider, useToast } from "./ui";
+import { LavenderIcon, ToastProvider, useToast } from "./ui";
 
 export type View = "assistant" | "inbox" | "todo" | "all" | "applied" | "diy" | "skipped" | "find" | "profile" | "settings";
 
@@ -121,7 +121,7 @@ function Shell() {
   const ctx: Ctx = { state, jobs, refresh, go, openJob: setSelected, selected };
   const inboxCount = (counts.needs_answer ?? 0) + (counts.filled ?? 0) + (counts.error ?? 0);
 
-  const nav = (v: View, label: string, Icon: typeof Inbox, right?: React.ReactNode) => (
+  const nav = (v: View, label: string, Icon: React.ComponentType<{ size?: number; strokeWidth?: number }>, right?: React.ReactNode) => (
     <button className={`navitem ${view === v ? "on" : ""}`} onClick={() => go(v)} title={label}>
       <Icon size={15} strokeWidth={1.8} />
       {label}
@@ -145,7 +145,7 @@ function Shell() {
           <kbd>K</kbd>
         </button>
 
-        {nav("assistant", "Assistant", BotMessageSquare)}
+        {nav("assistant", "Lavender", LavenderIcon)}
         {nav("inbox", "Inbox", Inbox, inboxCount ? <span className="badge">{inboxCount}</span> : null)}
         {nav("find", "Find jobs", Radar)}
 
@@ -186,7 +186,7 @@ function Shell() {
         {DEMO && (
           <div className="demobar">
             <span>
-              <b>Demo</b> · sample data, nothing is sent anywhere. Try the Assistant, open a job, press Fill application.
+              <b>Demo</b> · sample data, nothing is sent anywhere. Talk to Lavender, open a job, press Fill application.
             </span>
             <a className="btn primary sm" href="https://github.com/squarepegng/youhired#get-started" target="_blank" rel="noreferrer">
               Get YouHired

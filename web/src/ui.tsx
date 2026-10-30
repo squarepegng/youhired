@@ -183,3 +183,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     </ToastCtx.Provider>
   );
 }
+
+/** Lavender, the assistant: a lavender sprig, drawn to sit with the other outline icons. */
+export function LavenderIcon({ size = 16, strokeWidth = 1.9, color = "var(--violet)", className }: { size?: number; strokeWidth?: number; color?: string; className?: string }) {
+  return (
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <g transform="rotate(-20 12 12)">
+        <path d="M12 22.5V9.8" />
+        <path d="M12 18.4c-2.1-.2-3.6-1.6-4.1-3.6 2.1.2 3.6 1.6 4.1 3.6z" />
+        <ellipse cx="9.9" cy="10.6" rx="1.8" ry="2.4" transform="rotate(-30 9.9 10.6)" />
+        <ellipse cx="14.1" cy="10.6" rx="1.8" ry="2.4" transform="rotate(30 14.1 10.6)" />
+        <ellipse cx="10.3" cy="6.4" rx="1.6" ry="2.2" transform="rotate(-27 10.3 6.4)" />
+        <ellipse cx="13.7" cy="6.4" rx="1.6" ry="2.2" transform="rotate(27 13.7 6.4)" />
+        <ellipse cx="12" cy="2.8" rx="1.3" ry="1.9" />
+      </g>
+    </svg>
+  );
+}

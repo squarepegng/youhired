@@ -34,12 +34,12 @@ Then open **http://localhost:5173**. The sidebar has a four-step checklist to ge
 
 1. **Settings**: pick a provider and model, paste your API key, then press **Save & test**.
 2. **Profile**: upload your CV (PDF or DOCX). Your AI reads it and fills in your experience. Then fill in the facts only you can confirm and press **Confirm facts**. Changes save automatically.
-3. **Assistant**: tell it the kind of job you want, in your own words.
+3. **Lavender** (the assistant): tell her the kind of job you want, in your own words.
 4. **Inbox**: check what needs you, then submit.
 
 ## Getting around
 
-- **Assistant.** A chat where you say what you want and YouHired does it. Try "I'm a senior product designer, I want fintech roles that hire in Africa. Find them and apply to the best ones." It can:
+- **Lavender.** YouHired's assistant: a chat where you say what you want and YouHired does it. Try "I'm a senior product designer, I want fintech roles that hire in Africa. Find them and apply to the best ones." It can:
   - save your brief, which steers how the AI scores fit
   - change the job titles it searches for
   - run a search
@@ -100,7 +100,7 @@ Each scored job costs one AI call. "Score at most" in Search sets the limit per 
 YouHired's goal is to apply for you. You choose how:
 
 - **Pick jobs.** Tick them in any list and press **Apply**.
-- **Apply to everything that fits.** Press **Apply to all** in To apply, or tell the Assistant "apply to every eligible job above 70".
+- **Apply to everything that fits.** Press **Apply to all** in To apply, or tell Lavender "apply to every eligible job above 70".
 - **Autopilot.** Turn it on in Settings. YouHired submits each application itself, and only marks it **Applied** when the employer's confirmation page appears. That's also when the employer emails you their usual "we received your application". With Autopilot off, every form waits for you to press **Submit**.
 - **Work in the background.** Also in Settings. YouHired does all of this with no browser window. Some sites show "verify you're human" checks to hidden browsers; those jobs come back to you.
 

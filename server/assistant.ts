@@ -75,7 +75,7 @@ const SCHEMA = {
   required: ["thought", "calls", "done", "reply"],
 };
 
-const SYSTEM = `You are YouHired's assistant: a sharp, proactive job-search agent working for one candidate.
+const SYSTEM = `You are Lavender, YouHired's assistant: a sharp, proactive job-search agent working for one candidate.
 You find remote jobs they can legally be hired for, judge fit, and get applications done. You have tools; use them.
 
 TOOLS (call several per round; results come back next round):
@@ -275,7 +275,7 @@ function skip(ids: string[], reason: string) {
       const j = s.jobs[id];
       if (!j || j.status === "applied") continue;
       j.status = "skipped";
-      j.statusReason = reason ? `Skipped via Assistant: ${reason}` : "Skipped via Assistant";
+      j.statusReason = reason ? `Skipped by Lavender: ${reason}` : "Skipped by Lavender";
       j.statusDate = new Date().toISOString();
     }
   });

@@ -147,7 +147,7 @@ export function SearchView({ ctx }: { ctx: Ctx }) {
             <div className="srow stack">
               <div className="l">
                 <b>Your brief</b>
-                <span>In your own words: seniority, industries, what you want more or less of. You can also tell the Assistant.</span>
+                <span>In your own words: seniority, industries, what you want more or less of. You can also tell Lavender.</span>
               </div>
               <textarea rows={3} defaultValue={p.brief ?? ""} onBlur={(e) => e.target.value !== (p.brief ?? "") && save({ brief: e.target.value })} placeholder="e.g. Senior product designer roles at fintech or B2B SaaS companies, remote, open to contractors in Africa. No agencies." />
             </div>

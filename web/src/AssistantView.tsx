@@ -1,9 +1,9 @@
-import { BotMessageSquare, ArrowUp, Building2, ChevronRight, Check, CircleAlert, LoaderCircle, Radar, SquarePen, X, FileText, SkipForward, Eye, SlidersHorizontal, Send } from "lucide-react";
+import { ArrowUp, Building2, ChevronRight, Check, CircleAlert, LoaderCircle, Radar, SquarePen, X, FileText, SkipForward, Eye, SlidersHorizontal, Send } from "lucide-react";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "./api";
 import type { Ctx } from "./App";
 import type { Job } from "./types";
-import { StatusIcon, useToast } from "./ui";
+import { LavenderIcon, StatusIcon, useToast } from "./ui";
 
 interface ChatAction {
   type: "set_brief" | "update_search" | "run_search" | "apply_jobs" | "skip_jobs" | "open_job" | "add_companies";
@@ -21,7 +21,7 @@ interface Msg {
 }
 
 const SUGGESTIONS = [
-  { title: "Tell it what you want", text: "I'm a senior product designer. I want remote roles at fintech or B2B SaaS companies that hire in Africa. Find them and apply to the best ones." },
+  { title: "Tell her what you want", text: "I'm a senior product designer. I want remote roles at fintech or B2B SaaS companies that hire in Africa. Find them and apply to the best ones." },
   { title: "Find more jobs", text: "What jobs can I get from Nigeria right now? Look wider than my current sources." },
   { title: "Apply in bulk", text: "Apply to every eligible job with a fit above 70." },
   { title: "What needs me?", text: "What's waiting on me, and why were jobs skipped?" },
@@ -93,7 +93,7 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
     <>
       <div className="topbar">
         <div className="title">
-          <BotMessageSquare size={15} /> Assistant
+          <LavenderIcon size={15} /> Lavender
         </div>
         <div className="spacer" />
         {msgs.length > 0 && (
@@ -107,7 +107,7 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
           {msgs.length === 0 && !thinking ? (
             <div className="chathero">
               <img className="mascot" src={`${import.meta.env.BASE_URL}mascot.png`} alt="" width={112} height={90} />
-              <h1>What kind of job are you after?</h1>
+              <h1>Hi, I'm Lavender. What kind of job are you after?</h1>
               <p>Tell me in your own words. I'll set up the search, find roles you can be hired for, and fill in the applications. Every form waits for your OK before it's sent.</p>
               <div className="suggest">
                 {SUGGESTIONS.map((s) => (
@@ -122,7 +122,7 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
             msgs.map((m) => (
               <div key={m.id} className={`msg ${m.role}`}>
                 {m.role === "assistant" && (
-                  <img className="av" src={`${import.meta.env.BASE_URL}mascot.png`} alt="YouHired" />
+                  <img className="av" src={`${import.meta.env.BASE_URL}mascot.png`} alt="Lavender" />
                 )}
                 <div className="body">
                   {m.role === "assistant" && (m.steps?.length ?? 0) > 0 && <Steps steps={m.steps!} />}
@@ -136,7 +136,7 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
           )}
           {thinking && (
             <div className="msg assistant">
-              <img className="av" src={`${import.meta.env.BASE_URL}mascot.png`} alt="YouHired" />
+              <img className="av" src={`${import.meta.env.BASE_URL}mascot.png`} alt="Lavender" />
               <div className="body">
                 <div className="livesteps">
                   {live.slice(-6).map((st, i, arr) => (
