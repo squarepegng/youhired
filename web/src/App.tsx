@@ -188,8 +188,8 @@ function Shell() {
             <span>
               <b>Demo</b> · sample data, nothing is sent anywhere. Talk to Lavender, open a job, press Fill application.
             </span>
-            <a className="btn primary sm" href="https://github.com/squarepegng/youhired#get-started" target="_blank" rel="noreferrer">
-              Get YouHired
+            <a className="demolink" href="https://github.com/squarepegng/youhired#get-started" target="_blank" rel="noreferrer">
+              Get YouHired →
             </a>
           </div>
         )}

@@ -110,15 +110,16 @@ export function JobsView({ view, ctx, steps }: { view: View; ctx: Ctx; steps: St
         </a>
         {(() => {
           const ready = ctx.jobs.filter((j) => j.status === "found" && !j.needsLogin && !j.working && j.eligibility?.verdict !== "ineligible");
-          return view === "todo" || view === "inbox" ? (
+          // One primary action per screen: "Apply to all" only where it belongs (To apply).
+          return view === "todo" ? (
             ready.length > 0 && (
-              <button className="btn primary" onClick={() => applyIds(ready.map((j) => j.id))} title="YouHired applies to every eligible job, one after another">
+              <button className={`btn ${selected ? "" : "primary"}`} onClick={() => applyIds(ready.map((j) => j.id))} title="YouHired applies to every eligible job, one after another">
                 <Zap size={14} /> Apply to all {ready.length}
               </button>
             )
           ) : null;
         })()}
-        <button className={`btn ${view === "todo" ? "" : "primary"}`} onClick={() => ctx.go("find")}>
+        <button className="btn" onClick={() => ctx.go("find")}>
           <Radar size={14} /> Find jobs
         </button>
       </div>

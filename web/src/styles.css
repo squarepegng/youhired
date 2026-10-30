@@ -481,3 +481,5 @@ textarea { resize: vertical; line-height: 1.5; }
   .suggest button:hover::before, .suggest button:focus-visible::before { animation: none; background: linear-gradient(135deg, #7170ff, #b59aff); }
   .suggest button:hover::after, .suggest button:focus-visible::after { animation: none; opacity: 0; }
 }
+.demolink { color: var(--violet); font-weight: 500; font-size: 12.5px; white-space: nowrap; }
+.demolink:hover { color: #d6c8ff; text-decoration: underline; }

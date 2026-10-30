@@ -145,7 +145,7 @@ export function SearchView({ ctx }: { ctx: Ctx }) {
                   <span>{prog.running ? prog.log.at(-1) : `${prog.found} kept · ${prog.skipped} skipped · ${prog.scored} scored by your AI`}</span>
                 </div>
                 {!prog.running && prog.found > 0 && (
-                  <button className="btn sm primary" onClick={() => ctx.go("todo")}>
+                  <button className="btn sm" onClick={() => ctx.go("todo")}>
                     Review {prog.found} <ArrowRight size={12} />
                   </button>
                 )}
@@ -293,7 +293,7 @@ export function SearchView({ ctx }: { ctx: Ctx }) {
                 <label htmlFor="joburl">Job link</label>
                 <div style={{ display: "flex", gap: 8 }}>
                   <input id="joburl" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://job-boards.greenhouse.io/…" onKeyDown={(e) => e.key === "Enter" && url && addUrl()} />
-                  <button className="btn primary" onClick={addUrl} disabled={!url}>
+                  <button className="btn" onClick={addUrl} disabled={!url}>
                     <Plus size={13} /> Add
                   </button>
                 </div>

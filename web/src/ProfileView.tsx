@@ -144,7 +144,7 @@ export function ProfileView({ ctx }: { ctx: Ctx }) {
         <span className="faint" style={{ fontSize: 12 }}>
           Changes save automatically
         </span>
-        <button className={`btn ${p.confirmed ? "" : "primary"}`} onClick={confirm}>
+        <button className="btn" onClick={confirm}>
           {p.confirmed ? <CircleCheck size={14} color="var(--green)" /> : null}
           {p.confirmed ? "Confirmed" : "Confirm facts"}
         </button>
