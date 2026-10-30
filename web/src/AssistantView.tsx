@@ -106,9 +106,7 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
         <div className="thread">
           {msgs.length === 0 && !thinking ? (
             <div className="chathero">
-              <div className="orb">
-                <BotMessageSquare size={22} />
-              </div>
+              <img className="mascot" src={`${import.meta.env.BASE_URL}mascot.png`} alt="" width={112} height={90} />
               <h1>What kind of job are you after?</h1>
               <p>Tell me in your own words. I'll set up the search, find roles you can be hired for, and fill in the applications. Every form waits for your OK before it's sent.</p>
               <div className="suggest">
@@ -124,9 +122,7 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
             msgs.map((m) => (
               <div key={m.id} className={`msg ${m.role}`}>
                 {m.role === "assistant" && (
-                  <div className="av">
-                    <Check size={13} strokeWidth={3} />
-                  </div>
+                  <img className="av" src={`${import.meta.env.BASE_URL}mascot.png`} alt="YouHired" />
                 )}
                 <div className="body">
                   {m.role === "assistant" && (m.steps?.length ?? 0) > 0 && <Steps steps={m.steps!} />}
@@ -140,9 +136,7 @@ export function AssistantView({ ctx }: { ctx: Ctx }) {
           )}
           {thinking && (
             <div className="msg assistant">
-              <div className="av">
-                <Check size={13} strokeWidth={3} />
-              </div>
+              <img className="av" src={`${import.meta.env.BASE_URL}mascot.png`} alt="YouHired" />
               <div className="body">
                 <div className="livesteps">
                   {live.slice(-6).map((st, i, arr) => (

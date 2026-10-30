@@ -413,3 +413,7 @@ textarea { resize: vertical; line-height: 1.5; }
 .kitsteps li { line-height: 28px; }
 .demobar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px 8px 16px; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, rgba(113, 112, 255, 0.12), transparent); font-size: 12.5px; color: var(--text-2); flex: none; }
 .demobar b { color: var(--text); }
+.chathero .mascot { display: block; margin: 0 auto 14px; width: 112px; height: auto; filter: drop-shadow(0 10px 30px rgba(140, 120, 255, 0.35)); animation: bob 4s ease-in-out infinite; }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .chathero .mascot { animation: none; } }
+.msg img.av { width: 28px; height: auto; flex: none; margin-top: 1px; background: none; border-radius: 0; object-fit: contain; }
