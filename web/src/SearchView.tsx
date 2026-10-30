@@ -1,4 +1,4 @@
-import { CircleAlert, LoaderCircle, Plus, Radar, ArrowRight } from "lucide-react";
+import { ArrowRight, Briefcase, Building2, ChevronDown, Globe, Link2, LoaderCircle, Plus, Radar, Rocket, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { Ctx } from "./App";
@@ -14,33 +14,61 @@ interface Progress {
   errors: string[];
 }
 
+type Tab = "want" | "sources" | "link";
+
+/** Short, scannable source descriptions. */
 const SOURCE_INFO: Record<SourceId, string> = {
-  vc: "Job boards that Sequoia, Lightspeed, Kleiner Perkins, GV, Bessemer, First Round, Insight Partners, Atomico and other investors run for their whole portfolio, plus a16z's speedrun network. Funded startups only.",
-  funded: "Reads funding news (TechCrunch, PR Newswire), finds the job boards of companies that just raised, and adds the ones with roles like yours.",
-  fourdayweek: "Off: 4 Day Week's robots.txt asks tools not to use its API, so YouHired won't fetch it.",
-  nodesk: "Remote-only job board feed.",
-  jobspresso: "Off: Jobspresso's robots.txt asks tools not to read its feed, so YouHired won't fetch it.",
-  startupjobs: "Newest remote startup jobs for your titles.",
-  yc: "Finds Y Combinator startups that are hiring and remote-friendly (newest batches first), checks their job boards, and adds the ones with roles like yours.",
-  hn: "The monthly Hacker News \"Who is hiring?\" thread: hundreds of startups, many linking straight to their application form.",
-  jobicy: "Remote-only job board API.",
-  workingnomads: "Remote-only job board feed.",
-  arbeitnow: "Job board API, strong on Europe and remote.",
-  greenhouse: "Company boards on Greenhouse. No login needed to apply.",
-  lever: "Company boards on Lever.",
-  ashby: "Company boards on Ashby.",
-  himalayas: "Remote-only job board. Each job links back to Himalayas, as its terms ask.",
-  remoteok: "Remote-only job board. Each job links back to Remote OK, as its terms ask.",
-  wwr: "We Work Remotely RSS feed for your field.",
-  remotive: "Off: Remotive's robots.txt asks tools not to use its API, so YouHired won't fetch it.",
+  yc: "Hiring, remote-friendly YC startups",
+  vc: "Sequoia, Lightspeed, GV, Bessemer, First Round, a16z",
+  funded: "Companies that just raised money",
+  hn: "Hacker News “Who is hiring?” thread",
+  himalayas: "Remote-only job board",
+  remoteok: "Remote-only job board",
+  wwr: "We Work Remotely, your field",
+  jobicy: "Remote-only job board",
+  workingnomads: "Remote-only job board",
+  arbeitnow: "Strong on Europe and remote",
+  nodesk: "Remote-only job board",
+  startupjobs: "Newest remote startup roles",
+  greenhouse: "Company boards you choose",
+  lever: "Company boards you choose",
+  ashby: "Company boards you choose",
+  remotive: "Its robots.txt asks tools not to use the API",
+  fourdayweek: "Its robots.txt asks tools not to use the API",
+  jobspresso: "Its robots.txt asks tools not to read the feed",
 };
+
+const GROUPS: { title: string; icon: typeof Rocket; ids: SourceId[]; desc: string }[] = [
+  { title: "Startups & investors", icon: Rocket, ids: ["yc", "vc", "funded", "hn"], desc: "Freshly funded companies, the ones most likely to be hiring." },
+  { title: "Remote job boards", icon: Globe, ids: ["himalayas", "remoteok", "wwr", "startupjobs", "jobicy", "workingnomads", "arbeitnow", "nodesk"], desc: "Listings are matched to the employer's own form when possible." },
+  { title: "Company boards", icon: Building2, ids: ["greenhouse", "lever", "ashby"], desc: "Specific companies you want to watch." },
+];
+const BLOCKED: SourceId[] = ["remotive", "fourdayweek", "jobspresso"];
 
 export function SearchView({ ctx }: { ctx: Ctx }) {
   const toast = useToast();
   const [p, setP] = useState<SearchPrefs>(ctx.state.search);
   const [prog, setProg] = useState<Progress | null>(null);
   const [url, setUrl] = useState("");
+  const [showLog, setShowLog] = useState(false);
+  const [boards, setBoards] = useState(false);
+  const [tab, setTab] = useState<Tab>(() => {
+    try {
+      return (localStorage.getItem("jp.findTab") as Tab) || "want";
+    } catch {
+      return "want";
+    }
+  });
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const pickTab = (t: Tab) => {
+    setTab(t);
+    try {
+      localStorage.setItem("jp.findTab", t);
+    } catch {
+      /* private mode */
+    }
+  };
 
   const poll = async () => {
     const r = await api<Progress>("/api/search/progress").catch(() => null);
@@ -85,12 +113,9 @@ export function SearchView({ ctx }: { ctx: Ctx }) {
   };
 
   const where = [ctx.state.profile.city, ctx.state.profile.country].filter(Boolean).join(", ");
-  const boardField = (key: "greenhouseBoards" | "leverCompanies" | "ashbyOrgs", src: SourceId, example: string) =>
-    p.sources[src] && (
-      <div style={{ padding: "0 16px 12px 16px" }}>
-        <TagInput value={p[key]} onChange={(v) => save({ [key]: v } as Partial<SearchPrefs>)} placeholder={`Board names, e.g. ${example}`} />
-      </div>
-    );
+  const usable = (Object.keys(SOURCE_INFO) as SourceId[]).filter((s) => !BLOCKED.includes(s));
+  const onCount = usable.filter((s) => p.sources[s]).length;
+  const boardCount = p.greenhouseBoards.length + p.leverCompanies.length + p.ashbyOrgs.length;
 
   return (
     <>
@@ -105,154 +130,177 @@ export function SearchView({ ctx }: { ctx: Ctx }) {
         </button>
       </div>
       <div className="content">
-        <div className="page">
+        <div className="page find">
           <h1>Find jobs</h1>
           <p className="lede">
-            Pulls postings from public job boards, keeps the ones you can be hired for from <b style={{ color: "var(--text)" }}>{where || "your country (set it in Profile)"}</b>, and has your AI score how well each one fits.
+            Searches {onCount} sources for roles you can be hired for from <b>{where || "your country"}</b>, then scores how well each one fits.
           </p>
 
           {prog && prog.log.length > 0 && (
-            <div className="runcard">
-              <div className="runhead">
-                {prog.running ? <LoaderCircle size={15} className="spin" /> : <Radar size={15} />}
-                {prog.running ? "Searching…" : "Last search"}
-                <span className="spacer" style={{ flex: 1 }} />
+            <div className={`runsum ${prog.running ? "live" : ""}`}>
+              <div className="runsum-main">
+                <span className="runsum-icon">{prog.running ? <LoaderCircle size={16} className="spin" /> : <Radar size={16} />}</span>
+                <div className="runsum-text">
+                  <b>{prog.running ? "Searching…" : "Last search"}</b>
+                  <span>{prog.running ? prog.log.at(-1) : `${prog.found} kept · ${prog.skipped} skipped · ${prog.scored} scored by your AI`}</span>
+                </div>
                 {!prog.running && prog.found > 0 && (
                   <button className="btn sm primary" onClick={() => ctx.go("todo")}>
-                    Review {prog.found} jobs <ArrowRight size={12} />
+                    Review {prog.found} <ArrowRight size={12} />
                   </button>
                 )}
+                <button className="btn ghost sm" onClick={() => setShowLog(!showLog)} aria-expanded={showLog}>
+                  Details <ChevronDown size={12} style={{ transform: showLog ? "rotate(180deg)" : undefined, transition: "transform .15s" }} />
+                </button>
               </div>
-              <div className="stats">
-                <div>
-                  <b>{prog.found}</b>
-                  <span>kept</span>
-                </div>
-                <div>
-                  <b>{prog.skipped}</b>
-                  <span>skipped</span>
-                </div>
-                <div>
-                  <b>{prog.scored}</b>
-                  <span>scored by AI</span>
-                </div>
-              </div>
-              <div className="runlog">{prog.log.slice(-40).join("\n")}</div>
+              {showLog && <div className="runlog">{prog.log.slice(-40).join("\n")}</div>}
             </div>
           )}
 
-          <div className="group-title">What you're looking for</div>
-          <p className="group-desc">Your brief guides the AI when it scores fit. Titles decide which postings are considered at all.</p>
-          <div className="box">
-            <div className="srow stack">
-              <div className="l">
-                <b>Your brief</b>
-                <span>In your own words: seniority, industries, what you want more or less of. You can also tell Lavender.</span>
-              </div>
-              <textarea rows={3} defaultValue={p.brief ?? ""} onBlur={(e) => e.target.value !== (p.brief ?? "") && save({ brief: e.target.value })} placeholder="e.g. Senior product designer roles at fintech or B2B SaaS companies, remote, open to contractors in Africa. No agencies." />
-            </div>
-            <div className="srow stack">
-              <div className="l">
-                <b>Job titles</b>
-                <span>A posting matches when its title contains every word of one of these.</span>
-              </div>
-              <TagInput value={p.titles} onChange={(v) => save({ titles: v })} placeholder="product designer, ux designer…" />
-            </div>
-            <div className="srow stack">
-              <div className="l">
-                <b>Leave out titles containing</b>
-              </div>
-              <TagInput value={p.excludeKeywords} onChange={(v) => save({ excludeKeywords: v })} placeholder="intern, principal…" />
-            </div>
-            <div className="srow">
-              <div className="l">
-                <b>Posted within</b>
-                <span>Older postings are ignored.</span>
-              </div>
-              <div className="r">
-                <select value={p.maxAgeDays} onChange={(e) => save({ maxAgeDays: +e.target.value })} style={{ width: 160 }}>
-                  {[7, 14, 30, 60, 90].map((d) => (
-                    <option key={d} value={d}>
-                      {d} days
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="srow">
-              <div className="l">
-                <b>AI scoring limit</b>
-                <span>Each scored job is one call on your AI key.</span>
-              </div>
-              <div className="r">
-                <select value={p.maxToScore} onChange={(e) => save({ maxToScore: +e.target.value })} style={{ width: 160 }}>
-                  {[10, 20, 40, 80, 150].map((d) => (
-                    <option key={d} value={d}>
-                      {d} jobs per search
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="group-title">Location rules</div>
-          <div className="callout" style={{ marginTop: 6 }}>
-            <CircleAlert size={14} color="var(--muted)" />
-            <span>
-              These come from your Profile: where you live, where you're authorised to work, and whether you take contractor roles. Roles open worldwide, to your region (for example EMEA), or to contractors anywhere are kept. Roles limited to places where you can't legally work are skipped, and the posting's exact words are saved as evidence.
-            </span>
-          </div>
-
-          <div className="group-title">Sources</div>
-          <p className="group-desc">Only public APIs and feeds. YouHired follows each site's robots.txt and waits between requests.</p>
-          <div className="box">
-            {(Object.keys(ctx.state.sources) as SourceId[]).map((id) => (
-              <div key={id}>
-                <div className="srcrow">
-                  <div className="l">
-                    <b>{ctx.state.sources[id]}</b>
-                    <span>{SOURCE_INFO[id]}</span>
-                  </div>
-                  <Switch label={ctx.state.sources[id]} checked={!!p.sources[id]} onChange={(v) => save({ sources: { ...p.sources, [id]: v } })} />
-                </div>
-                {id === "greenhouse" && boardField("greenhouseBoards", "greenhouse", "gitlab")}
-                {id === "lever" && boardField("leverCompanies", "lever", "toptal")}
-                {id === "ashby" && boardField("ashbyOrgs", "ashby", "zapier")}
-                {id === "yc" && p.sources.yc && (
-                  <div className="srow" style={{ borderTop: "1px solid var(--line)" }}>
-                    <div className="l">
-                      <span>
-                        New startups to check per search. {p.ycChecked?.length ? `${p.ycChecked.length} checked so far; each search looks at ones it hasn't seen.` : ""}
-                      </span>
-                    </div>
-                    <div className="r">
-                      <select value={p.ycPerSearch ?? 80} onChange={(e) => save({ ycPerSearch: +e.target.value })} style={{ width: 160 }}>
-                        {[0, 40, 80, 150, 300].map((n) => (
-                          <option key={n} value={n}>
-                            {n === 0 ? "Off" : `${n} startups`}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
+          <div className="seg" role="tablist" aria-label="Find jobs settings">
+            {(
+              [
+                ["want", "What you want", SlidersHorizontal],
+                ["sources", `Sources · ${onCount}`, Briefcase],
+                ["link", "Add a job", Link2],
+              ] as const
+            ).map(([id, label, Icon]) => (
+              <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => pickTab(id)}>
+                <Icon size={13} /> {label}
+              </button>
             ))}
           </div>
-          <p className="group-desc" style={{ marginTop: 8 }}>
-            A board name is the part of a careers link after the ATS domain: <code>boards.greenhouse.io/gitlab</code>, <code>jobs.lever.co/toptal</code>, <code>jobs.ashbyhq.com/zapier</code>.
-          </p>
 
-          <div className="group-title">Add one job by link</div>
-          <div className="box">
-            <div className="srow">
-              <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://job-boards.greenhouse.io/…" onKeyDown={(e) => e.key === "Enter" && url && addUrl()} />
-              <button className="btn" onClick={addUrl} disabled={!url}>
-                <Plus size={13} /> Add
-              </button>
+          {tab === "want" && (
+            <div className="panel">
+              <div className="f">
+                <label htmlFor="brief">Your brief</label>
+                <textarea id="brief" rows={3} defaultValue={p.brief ?? ""} onBlur={(e) => e.target.value !== (p.brief ?? "") && save({ brief: e.target.value })} placeholder="e.g. Senior product designer roles at fintech or B2B SaaS companies, remote, open to contractors in Africa." />
+                <div className="note">Guides how your AI scores fit. You can also just tell Lavender.</div>
+              </div>
+              <div className="f">
+                <label>Job titles</label>
+                <TagInput value={p.titles} onChange={(v) => save({ titles: v })} placeholder="product designer, ux designer…" />
+                <div className="note">A posting matches when its title contains every word of one of these.</div>
+              </div>
+              <div className="f">
+                <label>Leave out titles with</label>
+                <TagInput value={p.excludeKeywords} onChange={(v) => save({ excludeKeywords: v })} placeholder="intern, principal…" />
+              </div>
+              <div className="inline-fields">
+                <label>
+                  Posted within
+                  <select value={p.maxAgeDays} onChange={(e) => save({ maxAgeDays: +e.target.value })}>
+                    {[7, 14, 30, 60, 90].map((d) => (
+                      <option key={d} value={d}>
+                        {d} days
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Score up to
+                  <select value={p.maxToScore} onChange={(e) => save({ maxToScore: +e.target.value })}>
+                    {[10, 20, 40, 80, 150].map((d) => (
+                      <option key={d} value={d}>
+                        {d} jobs
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {p.sources.yc && (
+                  <label>
+                    New YC startups
+                    <select value={p.ycPerSearch ?? 80} onChange={(e) => save({ ycPerSearch: +e.target.value })}>
+                      {[0, 40, 80, 150, 300].map((n) => (
+                        <option key={n} value={n}>
+                          {n === 0 ? "None" : `${n} per search`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
+              <p className="hintline">
+                Where you can be hired comes from your{" "}
+                <button className="linkbtn" onClick={() => ctx.go("profile")}>
+                  Profile
+                </button>
+                : roles open worldwide, to your region or to contractors are kept; others are skipped with the posting's own words as evidence.
+              </p>
             </div>
-          </div>
+          )}
+
+          {tab === "sources" && (
+            <div className="srcgroups">
+              {GROUPS.map((g) => (
+                <section key={g.title} className="srcgroup">
+                  <div className="srcgroup-head">
+                    <g.icon size={14} />
+                    <b>{g.title}</b>
+                    <span className="faint">
+                      {g.ids.filter((s) => p.sources[s]).length}/{g.ids.length} on
+                    </span>
+                  </div>
+                  <p className="group-desc">{g.desc}</p>
+                  <div className="tiles">
+                    {g.ids.map((id) => (
+                      <label key={id} className={`tile ${p.sources[id] ? "on" : ""}`}>
+                        <div>
+                          <b>{ctx.state.sources[id]?.replace(/\s*\(.*\)$/, "")}</b>
+                          <span>{SOURCE_INFO[id]}</span>
+                        </div>
+                        <Switch label={ctx.state.sources[id] ?? id} checked={!!p.sources[id]} onChange={(v) => save({ sources: { ...p.sources, [id]: v } })} />
+                      </label>
+                    ))}
+                  </div>
+                  {g.title === "Company boards" && (
+                    <>
+                      <button className="disclose" onClick={() => setBoards(!boards)} aria-expanded={boards}>
+                        <ChevronDown size={13} style={{ transform: boards ? "rotate(180deg)" : undefined, transition: "transform .15s" }} />
+                        Manage {boardCount} company boards
+                      </button>
+                      {boards && (
+                        <div className="boards">
+                          {(
+                            [
+                              ["greenhouseBoards", "Greenhouse", "gitlab"],
+                              ["leverCompanies", "Lever", "toptal"],
+                              ["ashbyOrgs", "Ashby", "zapier"],
+                            ] as const
+                          ).map(([key, name, ex]) => (
+                            <div className="f" key={key}>
+                              <label>{name}</label>
+                              <TagInput value={p[key]} onChange={(v) => save({ [key]: v } as Partial<SearchPrefs>)} placeholder={`e.g. ${ex}`} />
+                            </div>
+                          ))}
+                          <p className="note">
+                            The board name is the part of a careers link after the domain, e.g. jobs.ashbyhq.com/<b>zapier</b>.
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </section>
+              ))}
+              <p className="hintline">Not used: {BLOCKED.map((s) => ctx.state.sources[s]).join(", ")}. Their robots.txt asks tools to stay out, and YouHired respects that.</p>
+            </div>
+          )}
+
+          {tab === "link" && (
+            <div className="panel">
+              <div className="f">
+                <label htmlFor="joburl">Job link</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input id="joburl" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://job-boards.greenhouse.io/…" onKeyDown={(e) => e.key === "Enter" && url && addUrl()} />
+                  <button className="btn primary" onClick={addUrl} disabled={!url}>
+                    <Plus size={13} /> Add
+                  </button>
+                </div>
+                <div className="note">Found a job somewhere else? Paste it here and YouHired treats it like any other: checks it, fills it, tracks it.</div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>

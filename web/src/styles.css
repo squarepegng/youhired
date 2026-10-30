@@ -417,3 +417,67 @@ textarea { resize: vertical; line-height: 1.5; }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .chathero .mascot { animation: none; } }
 .msg img.av { width: 28px; height: auto; flex: none; margin-top: 1px; background: none; border-radius: 0; object-fit: contain; }
+
+/* ── Find jobs (calmer layout) ─────────────────────────────── */
+.page.find { max-width: 680px; }
+.page.find > .lede { margin-bottom: 18px; }
+.page.find .lede b { color: var(--text); font-weight: 500; }
+.runsum { border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); margin-bottom: 18px; overflow: hidden; }
+.runsum.live { border-color: rgba(113, 112, 255, 0.45); }
+.runsum-main { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px; }
+.runsum-icon { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--accent-soft); color: var(--violet); flex: none; }
+.runsum-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.runsum-text b { color: var(--text); font-weight: 500; }
+.runsum-text span { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.runsum .runlog { border-top: 1px solid var(--line); }
+.seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2); margin-bottom: 14px; }
+.seg button { border: 0; background: none; color: var(--muted); height: 28px; padding: 0 12px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.seg button:hover { color: var(--text); }
+.seg button.on { background: var(--active); color: var(--text); box-shadow: 0 0 0 1px var(--line-2); }
+.panel { border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); padding: 16px; display: flex; flex-direction: column; gap: 16px; animation: fade 0.15s; }
+.inline-fields { display: flex; gap: 12px; flex-wrap: wrap; }
+.inline-fields label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+.inline-fields select { width: 170px; }
+.hintline { margin: 0; color: var(--faint); font-size: 12px; line-height: 1.55; }
+.srcgroups { display: flex; flex-direction: column; gap: 18px; animation: fade 0.15s; }
+.srcgroup-head { display: flex; align-items: center; gap: 8px; color: var(--text); }
+.srcgroup-head svg { color: var(--violet); }
+.srcgroup-head .faint { margin-left: auto; font-size: 12px; }
+.srcgroup .group-desc { margin: 2px 0 8px; }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.tile { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2); cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.tile:hover { border-color: var(--line-2); }
+.tile.on { border-color: rgba(113, 112, 255, 0.35); background: linear-gradient(180deg, rgba(113, 112, 255, 0.06), transparent), var(--panel-2); }
+.tile div { min-width: 0; }
+.tile b { display: block; color: var(--text); font-weight: 500; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile span { display: block; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.disclose { margin-top: 8px; border: 0; background: none; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 12.5px; }
+.disclose:hover { color: var(--text); }
+.boards { margin-top: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; display: flex; flex-direction: column; gap: 12px; animation: fade 0.15s; }
+@media (max-width: 700px) { .tiles { grid-template-columns: 1fr; } }
+
+/* ── Lavender suggestion cards: shimmering border on hover ─────────────── */
+@property --shimmer { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.suggest button { position: relative; isolation: isolate; transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, border-color 0.18s; }
+.suggest button::before {
+  content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; z-index: -1; pointer-events: none;
+  background: conic-gradient(from var(--shimmer), transparent 0deg, transparent 200deg, #7170ff 260deg, #d6c8ff 300deg, #b59aff 330deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0; transition: opacity 0.2s;
+}
+.suggest button::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+  background: linear-gradient(115deg, transparent 30%, rgba(181, 154, 255, 0.10) 45%, rgba(255, 255, 255, 0.06) 50%, transparent 65%);
+  background-size: 250% 100%; background-position: 120% 0; opacity: 0;
+}
+.suggest button:hover, .suggest button:focus-visible { transform: translateY(-2px); border-color: transparent; box-shadow: 0 10px 30px -12px rgba(113, 112, 255, 0.55); background: #17171c; }
+.suggest button:hover::before, .suggest button:focus-visible::before { opacity: 1; animation: shimmer-spin 2.6s linear infinite; }
+.suggest button:hover::after, .suggest button:focus-visible::after { opacity: 1; animation: shimmer-sweep 1.2s ease-out 1; }
+.suggest button:hover b, .suggest button:focus-visible b { color: #d6c8ff; }
+@keyframes shimmer-spin { to { --shimmer: 360deg; } }
+@keyframes shimmer-sweep { from { background-position: 120% 0; } to { background-position: -20% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .suggest button:hover, .suggest button:focus-visible { transform: none; }
+  .suggest button:hover::before, .suggest button:focus-visible::before { animation: none; background: linear-gradient(135deg, #7170ff, #b59aff); }
+  .suggest button:hover::after, .suggest button:focus-visible::after { animation: none; opacity: 0; }
+}
