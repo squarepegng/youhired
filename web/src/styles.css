@@ -498,3 +498,5 @@ textarea { resize: vertical; line-height: 1.5; }
 .disclose { margin-top: 12px; }
 .boards { margin-top: 12px; padding: 16px; gap: 16px; }
 .page.find .hintline { margin-top: 4px; }
+.demobtn { background: transparent; border-color: var(--line-2); color: var(--text-2); }
+.demobtn:hover { background: var(--hover); color: var(--text); text-decoration: none; }
